@@ -10,8 +10,8 @@
 
 | Platform | Status | Notes |
 |----------|--------|-------|
-| GitHub | ❌ **NEED ACCESS** | Create private repo `loratrainer` |
-| Azure DevOps | ⏳ Later | For .exe/.deb compilation |
+| GitHub | ✅ Connected | `zumuuser/loratrainer` |
+| Azure DevOps | ✅ Access received | `mushkudianizuka/LoRA Trainer` |
 | RunPod/Vast.ai | N/A | User provides own API key |
 | OpenRouter | N/A | User provides own API key |
 
@@ -205,11 +205,11 @@ loratrainer/
 ### Phase 1: Foundation
 | # | Task | Status | Branch |
 |---|------|--------|--------|
-| 1.1 | Create GitHub repo `loratrainer` (private) | ❌ BLOCKED — need access | — |
-| 1.2 | Init Electron + Node.js project | ⬜ Not started | `feat/init` |
-| 1.3 | Design system (CSS) | ⬜ Not started | `feat/design-system` |
-| 1.4 | SQLite schema + DB module | ⬜ Not started | `feat/database` |
-| 1.5 | Onboarding page (API key entry) | ⬜ Not started | `feat/onboarding` |
+| 1.1 | Create GitHub repo `loratrainer` (private) | ✅ Done | — |
+| 1.2 | Init Electron + Node.js project | ✅ Done | `feat/init` |
+| 1.3 | Design system (CSS) | ✅ Done | `feat/init` |
+| 1.4 | SQLite schema + DB module | ✅ Done | `feat/init` |
+| 1.5 | Onboarding page (API key entry) | ✅ Done | `feat/init` |
 
 ### Phase 2: Core Upload & Captioning
 | # | Task | Status | Branch |
@@ -258,6 +258,7 @@ loratrainer/
 
 | Date | Change | Branch |
 |------|--------|--------|
+| 2026-07-01 | Phase 1 complete: project scaffold, design system, DB, onboarding, all page stubs, Docker + training templates | `feat/init` |
 | 2026-07-01 | Plan created | — |
 
 ---
