@@ -72,6 +72,25 @@ function register(ipcMain, userDataPath) {
     db.prepare('DELETE FROM models WHERE id = ?').run(id);
     return true;
   });
+
+  // Dataset images
+  ipcMain.handle('db:saveDatasetImages', (_, jobId, images) => {
+    const stmt = db.prepare('INSERT INTO dataset_images (job_id, file_path, caption) VALUES (?, ?, ?)');
+    const tx = db.transaction((imgs) => {
+      for (const img of imgs) stmt.run(jobId, img.path, img.caption || '');
+    });
+    tx(images);
+    return true;
+  });
+
+  ipcMain.handle('db:getDatasetImages', (_, jobId) => {
+    return db.prepare('SELECT * FROM dataset_images WHERE job_id = ? ORDER BY id').all(jobId);
+  });
+
+  ipcMain.handle('db:updateCaption', (_, imageId, caption) => {
+    db.prepare('UPDATE dataset_images SET caption = ? WHERE id = ?').run(caption, imageId);
+    return true;
+  });
 }
 
 module.exports = { register };
