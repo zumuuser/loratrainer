@@ -9,8 +9,8 @@ import sys
 import glob
 
 # Credentials
-devops_token = '1GMGoN4z71jeWqjDM0cbMi4I46mKhBqS4GdTGvisnofT4wQaq4tAJQQJ99CGACAAAAAAAAAAAAASAZDO2saa'
-github_token = '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'
+devops_token = os.environ.get('DEVOPS_TOKEN', '1GMGoN4z71jeWqjDM0cbMi4I46mKhBqS4GdTGvisnofT4wQaq4tAJQQJ99CGACAAAAAAAAAAAAASAZDO2saa')
+github_token = os.environ.get('GITHUB_TOKEN', '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')
 repo = 'zumuuser/loratrainer'
 
 # Auth headers
