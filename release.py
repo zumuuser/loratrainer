@@ -140,8 +140,23 @@ if not release_id:
     sys.exit(1)
 
 # 4. Upload Assets to GitHub Release
+# First, fetch existing assets to delete duplicates
+assets_url = f"https://api.github.com/repos/{repo}/releases/{release_id}/assets"
+existing_assets = request_json(assets_url, headers=github_headers)
+asset_map = {a['name']: a['id'] for a in existing_assets if 'name' in a}
+
 for asset_path in release_assets:
     fname = os.path.basename(asset_path)
+    if fname in asset_map:
+        print(f"Asset {fname} already exists on release, deleting old asset...")
+        delete_url = f"https://api.github.com/repos/{repo}/releases/assets/{asset_map[fname]}"
+        req_del = urllib.request.Request(delete_url, headers=github_headers, method='DELETE')
+        try:
+            with urllib.request.urlopen(req_del) as res:
+                print(f"Deleted old asset {fname}")
+        except Exception as e:
+            print(f"Failed to delete old asset {fname}: {e}")
+
     quoted_name = urllib.parse.quote(fname)
     upload_url = f"https://uploads.github.com/repos/{repo}/releases/{release_id}/assets?name={quoted_name}"
     print(f"Uploading {fname} to GitHub Release {tag}...")
@@ -160,10 +175,7 @@ for asset_path in release_assets:
             print(f"Successfully uploaded {fname}!")
     except urllib.error.HTTPError as e:
         body = e.read().decode('utf-8')
-        if "already_exists" in body:
-            print(f"Asset {fname} already exists in release, skipping or replacing is not needed.")
-        else:
-            print(f"Failed to upload {fname}: {body}", file=sys.stderr)
-            sys.exit(1)
+        print(f"Failed to upload {fname}: {body}", file=sys.stderr)
+        sys.exit(1)
 
 print("Release process completed successfully!")
