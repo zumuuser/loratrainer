@@ -56,10 +56,21 @@ App.registerPage('upload', async (container) => {
       <div id="upload-grid" class="mt-lg"></div>
 
       <!-- Actions -->
-      <div id="upload-actions" class="flex gap-md mt-lg hidden" style="position:fixed;bottom:0;left:var(--sidebar-w);right:0;padding:16px var(--space-xl);background:var(--bg-surface);border-top:1px solid var(--border);z-index:100">
+      <div id="upload-actions" class="flex gap-md mt-lg hidden" style="position:fixed;bottom:0;left:var(--sidebar-w);right:0;padding:16px var(--space-xl);background:var(--bg-surface);border-top:1px solid var(--border);z-index:100;align-items:center">
         <span class="text-sm text-muted flex items-center" id="img-count">0 images</span>
-        <button class="btn btn-secondary" id="upload-caption-btn">✨ Auto-Caption All</button>
         <button class="btn btn-secondary" id="upload-add-more">+ Add More</button>
+        
+        <div class="flex items-center gap-sm" style="margin-left:24px">
+          <label class="text-sm text-muted" for="upload-model-select">Model:</label>
+          <select class="input" id="upload-model-select" style="width:auto;padding:4px 8px;font-size:0.85rem;height:36px;margin:0">
+            <option value="google/gemini-2.0-flash-001">Gemini 2.0 Flash (Default)</option>
+            <option value="openai/gpt-4o-mini">GPT-4o Mini</option>
+            <option value="meta-llama/llama-3.2-11b-vision-instruct:free">Llama 3.2 11B Vision (Free)</option>
+            <option value="google/gemini-2.0-flash-exp:free">Gemini 2.0 Flash (Free)</option>
+          </select>
+          <button class="btn btn-secondary" id="upload-caption-btn">✨ Auto-Caption All</button>
+        </div>
+
         <button class="btn btn-primary" id="upload-continue" style="margin-left:auto">Continue to Config →</button>
       </div>
     </div>`;
@@ -95,9 +106,28 @@ App.registerPage('upload', async (container) => {
   };
 
   async function addImages(paths) {
-    const saved = await window.api.storage.saveImages(paths);
-    const imagesToSave = saved.map(s => ({ path: s.saved, caption: s.caption || '' }));
-    await window.api.db.saveDatasetImages(jobId, imagesToSave);
+    const imgPaths = paths.filter(p => {
+      const ext = p.substring(p.lastIndexOf('.')).toLowerCase();
+      return ['.jpg', '.jpeg', '.png', '.webp'].includes(ext);
+    });
+    const captionPaths = paths.filter(p => {
+      const ext = p.substring(p.lastIndexOf('.')).toLowerCase();
+      return ['.txt', '.json'].includes(ext);
+    });
+
+    if (imgPaths.length) {
+      const saved = await window.api.storage.saveImages(imgPaths);
+      const imagesToSave = saved.map(s => ({ path: s.saved, caption: s.caption || '' }));
+      await window.api.db.saveDatasetImages(jobId, imagesToSave);
+    }
+
+    if (captionPaths.length) {
+      const res = await window.api.storage.importCaptions(jobId, captionPaths);
+      if (res && res.count > 0) {
+        App.toast(`Imported ${res.count} captions from companion files!`);
+      }
+    }
+
     await reloadImages();
   }
 
@@ -149,6 +179,16 @@ App.registerPage('upload', async (container) => {
   // Initial load
   await reloadImages();
 
+  // Load saved model selection
+  const modelSelect = document.getElementById('upload-model-select');
+  if (modelSelect) {
+    const savedModel = await window.api.db.getSetting('openrouter_model') || 'google/gemini-2.0-flash-001';
+    modelSelect.value = savedModel;
+    modelSelect.onchange = async () => {
+      await window.api.db.setSetting('openrouter_model', modelSelect.value);
+    };
+  }
+
   // ── Auto-Caption ──
   const captionBar = document.getElementById('caption-bar');
   const captionLabel = document.getElementById('caption-label');
@@ -184,7 +224,7 @@ App.registerPage('upload', async (container) => {
 
     const uncaptioned = images.filter(img => !img.caption.trim());
     const pathsToCaption = uncaptioned.length ? uncaptioned.map(i => i.path) : images.map(i => i.path);
-    const model = await window.api.db.getSetting('openrouter_model') || 'google/gemini-2.0-flash-001';
+    const model = modelSelect ? modelSelect.value : (await window.api.db.getSetting('openrouter_model') || 'google/gemini-2.0-flash-001');
     
     const result = await window.api.openrouter.caption(pathsToCaption, apiKey, model);
 

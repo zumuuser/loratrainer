@@ -27,6 +27,7 @@ contextBridge.exposeInMainWorld('api', {
     getImagePath: (filename) => ipcRenderer.invoke('storage:getImagePath', filename),
     getModelPath: (filename) => ipcRenderer.invoke('storage:getModelPath', filename),
     openFileDialog: (options) => ipcRenderer.invoke('storage:openFileDialog', options),
+    importCaptions: (jobId, filePaths) => ipcRenderer.invoke('storage:importCaptions', jobId, filePaths),
     openFolder: (folderPath) => ipcRenderer.invoke('storage:openFolder', folderPath),
     downloadFile: (url, destPath) => ipcRenderer.invoke('storage:downloadFile', { url, destPath }),
     onDownloadProgress: (callback) => ipcRenderer.on('storage:downloadProgress', (_, data) => callback(data)),

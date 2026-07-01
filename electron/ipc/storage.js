@@ -49,6 +49,51 @@ function register(ipcMain, userDataPath) {
   ipcMain.handle('storage:getImagePath', (_, filename) => path.join(imgDir, filename));
   ipcMain.handle('storage:getModelPath', (_, filename) => path.join(modelDir, filename));
 
+  ipcMain.handle('storage:importCaptions', async (_, jobId, filePaths) => {
+    const dbImages = await ipcMain._db.prepare('SELECT * FROM dataset_images WHERE job_id = ?').all(jobId);
+    if (!dbImages.length) return { error: 'No images uploaded yet' };
+
+    let count = 0;
+    for (const fp of filePaths) {
+      const ext = path.extname(fp).toLowerCase();
+      if (!['.txt', '.json'].includes(ext)) continue;
+
+      const baseName = path.basename(fp, ext).toLowerCase();
+
+      // Find an image in the DB that matches this baseName
+      const matchingImg = dbImages.find(img => {
+        const imgName = path.basename(img.file_path);
+        // Clean out timestamp prefix if any (e.g. 1782909553244_my_char_01.jpg)
+        const cleanImgName = imgName.replace(/^\d+_/,'').toLowerCase();
+        return cleanImgName.startsWith(baseName + '.');
+      });
+
+      if (matchingImg) {
+        let caption = '';
+        try {
+          if (ext === '.txt') {
+            caption = fs.readFileSync(fp, 'utf8').trim();
+          } else if (ext === '.json') {
+            const parsed = JSON.parse(fs.readFileSync(fp, 'utf8'));
+            if (typeof parsed === 'string') {
+              caption = parsed;
+            } else if (parsed && typeof parsed === 'object') {
+              caption = parsed.caption || parsed.tags || parsed.description || parsed.text || '';
+              if (Array.isArray(caption)) caption = caption.join(', ');
+            }
+          }
+          if (caption) {
+            await ipcMain._db.prepare('UPDATE dataset_images SET caption = ? WHERE id = ?').run(caption, matchingImg.id);
+            count++;
+          }
+        } catch (e) {
+          console.error('Error importing caption:', e);
+        }
+      }
+    }
+    return { success: true, count };
+  });
+
   ipcMain.handle('storage:openFileDialog', async (_, options) => {
     const result = await dialog.showOpenDialog({
       properties: ['openFile', 'multiSelections'],
