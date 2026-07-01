@@ -112,14 +112,14 @@ if not release_assets:
 
 print(f"Found assets to upload: {release_assets}")
 
-# 4. Create or Get GitHub Release v0.6.3
-tag = 'v0.6.3'
+# 4. Create or Get GitHub Release v0.6.4
+tag = 'v0.6.4'
 release_url = f"https://api.github.com/repos/{repo}/releases"
 release_data = {
     "tag_name": tag,
     "target_commitish": "main",
     "name": f"Release {tag}",
-    "body": "v0.6.3 — Fresh compiled build containing: RunPod port exposure mapping (fixing connection timeout), automatic database docker image migration to GHCR, and automatic Docker GHCR image build.",
+    "body": "v0.6.4 — Fresh compiled build containing: RunPod volumeMountPath configuration (fixing invalid mount config daemon error), port exposure mapping, and automatic Docker GHCR image build.",
     "draft": False,
     "prerelease": False
 }

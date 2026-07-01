@@ -116,6 +116,7 @@ async function runpodCreatePod(apiKey, gpuTypeId, dockerImage, envVars = {}, con
     gpuCount: 1,
     volumeInGb: 50,
     containerDiskInGb: 20,
+    volumeMountPath: '/workspace',
     ports: '8000/http,22/tcp',
     env: envArray,
     startSsh: true,
