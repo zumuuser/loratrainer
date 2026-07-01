@@ -6,8 +6,6 @@ const fs = require('fs');
 const monitors = {};
 
 function register(ipcMain, userDataPath) {
-  // Reference to DB and GPU modules (loaded at runtime via ipcMain)
-  const getDB = () => require('./database');
   const modelsDir = path.join(userDataPath, 'models');
   if (!fs.existsSync(modelsDir)) fs.mkdirSync(modelsDir, { recursive: true });
 
@@ -25,7 +23,7 @@ function register(ipcMain, userDataPath) {
       const templateFile = job.base_model === 'ideogram4' ? 'ideogram4.yaml' : 'krea2.yaml';
       let template = fs.readFileSync(path.join(__dirname, '..', '..', 'training', 'templates', templateFile), 'utf8');
 
-      const steps = config.epochs * 100; // rough: ~100 steps per epoch for typical dataset
+      const steps = config.epochs * 100;
       template = template
         .replace(/\$\{JOB_NAME\}/g, job.name)
         .replace(/\$\{DATASET_PATH\}/g, '/workspace/dataset')
@@ -48,13 +46,12 @@ function register(ipcMain, userDataPath) {
 
       const selectedGPU = job.gpu_type !== 'auto'
         ? gpuList.find(g => g.id === job.gpu_type) || gpuList[0]
-        : gpuList[0]; // cheapest available
+        : gpuList[0];
 
-      const dockerImage = 'loratrainer/trainer:latest'; // Our Docker image
+      const dockerImage = 'loratrainer/trainer:latest';
       const envVars = {
         CONFIG_YAML: template,
         JOB_ID: String(jobId),
-        CALLBACK_URL: '', // For future webhook support
       };
 
       const createParams = provider === 'vastai'
@@ -92,10 +89,8 @@ function register(ipcMain, userDataPath) {
       const gpuKey = await ipcMain._invokeHandler('db:getSetting', 'gpu_api_key');
       const provider = job.gpu_provider;
 
-      // Stop monitor
       if (monitors[jobId]) { clearInterval(monitors[jobId]); delete monitors[jobId]; }
 
-      // Destroy GPU
       await ipcMain._invokeHandler('gpu:destroyInstance', provider, gpuKey, job.gpu_instance);
 
       await ipcMain._invokeHandler('db:updateJob', jobId, {
@@ -121,7 +116,7 @@ function register(ipcMain, userDataPath) {
       try {
         elapsed += POLL_INTERVAL / 1000;
         const job = await ipc._invokeHandler('db:getJob', jobId);
-        if (!job || job.status === 'stopped' || job.status === 'completed' || job.status === 'failed') {
+        if (!job || ['stopped', 'completed', 'failed'].includes(job.status)) {
           clearInterval(monitors[jobId]);
           delete monitors[jobId];
           return;
@@ -137,7 +132,7 @@ function register(ipcMain, userDataPath) {
 
         // Estimate progress (rough based on elapsed vs expected time)
         const config = JSON.parse(job.config || '{}');
-        const expectedMin = (config.epochs || 20) * 1.5; // ~1.5 min per epoch rough
+        const expectedMin = (config.epochs || 20) * 1.5;
         const progress = Math.min(95, Math.round((elapsed / 60 / expectedMin) * 100));
         const etaSec = Math.max(0, Math.round((expectedMin * 60) - elapsed));
 
@@ -166,11 +161,72 @@ function register(ipcMain, userDataPath) {
           sender.send('training:progress', { jobId, status: 'training', message: `⚠ 90% of spend limit reached ($${cost.toFixed(2)}/$${spendLimit})` });
         }
 
-        // Check if instance is done (no longer running)
-        if (instance && instance.actual_status === 'exited') {
-          sender.send('training:complete', { jobId, message: 'Training complete!' });
-          await ipc._invokeHandler('gpu:destroyInstance', provider, gpuKey, instanceId);
-          await ipc._invokeHandler('db:updateJob', jobId, { status: 'completed', progress: 100, finished_at: new Date().toISOString() });
+        // Determine server endpoint for download checking
+        let endpoint = null;
+        if (provider === 'vastai' && instance && instance.public_ipaddr && instance.ports && instance.ports['8000/tcp']) {
+          const portObj = instance.ports['8000/tcp'][0];
+          if (portObj) endpoint = `http://${instance.public_ipaddr}:${portObj.HostPort}`;
+        } else if (provider === 'runpod' && instanceId) {
+          endpoint = `http://${instanceId}-8000.proxy.runpod.net`;
+        }
+
+        if (endpoint) {
+          try {
+            const doneCheck = await fetch(`${endpoint}/done.txt`, { signal: AbortSignal.timeout(5000) });
+            if (doneCheck.ok) {
+              sender.send('training:progress', { jobId, status: 'generating_samples', progress: 95, message: 'Downloading model & samples...' });
+              await ipc._invokeHandler('db:updateJob', jobId, { status: 'generating_samples' });
+
+              const destModelPath = path.join(modelsDir, `${jobId}_model.safetensors`);
+              const destThumbPath = path.join(modelsDir, `${jobId}_sample.png`);
+
+              // Download model
+              await ipc._invokeHandler('storage:downloadFile', { url: `${endpoint}/model.safetensors`, destPath: destModelPath });
+              
+              // Download sample thumbnail
+              try {
+                await ipc._invokeHandler('storage:downloadFile', { url: `${endpoint}/sample.png`, destPath: destThumbPath });
+              } catch {
+                // Ignore missing thumbnail, fallback to null
+              }
+
+              // Register model in database
+              const modelData = {
+                job_id: jobId,
+                name: job.name,
+                base_model: job.base_model,
+                file_path: destModelPath,
+                file_size: fs.existsSync(destModelPath) ? fs.statSync(destModelPath).size : 0,
+                thumbnail: fs.existsSync(destThumbPath) ? destThumbPath : null,
+                sample_images: JSON.stringify(fs.existsSync(destThumbPath) ? [destThumbPath] : []),
+                training_cost: cost,
+              };
+
+              const stmt = ipcMain._db.prepare(`
+                INSERT INTO models (job_id, name, base_model, file_path, file_size, thumbnail, sample_images, training_cost)
+                VALUES (@job_id, @name, @base_model, @file_path, @file_size, @thumbnail, @sample_images, @training_cost)
+              `);
+              stmt.run(modelData);
+
+              // Shutdown server
+              await ipc._invokeHandler('gpu:destroyInstance', provider, gpuKey, instanceId);
+
+              // Complete Job
+              await ipc._invokeHandler('db:updateJob', jobId, { status: 'completed', progress: 100, finished_at: new Date().toISOString() });
+              sender.send('training:complete', { jobId, message: 'Training complete and model downloaded!' });
+
+              clearInterval(monitors[jobId]);
+              delete monitors[jobId];
+            }
+          } catch (fetchErr) {
+            // Server not up yet or unreachable, continue polling
+          }
+        }
+
+        // Fallback: Check if instance is terminated externally
+        if (instance && (instance.actual_status === 'exited' || instance.status === 'TERMINATED')) {
+          await ipc._invokeHandler('db:updateJob', jobId, { status: 'failed', error_msg: 'GPU instance terminated unexpectedly' });
+          sender.send('training:error', { jobId, error: 'GPU instance terminated unexpectedly' });
           clearInterval(monitors[jobId]);
           delete monitors[jobId];
         }
@@ -181,8 +237,6 @@ function register(ipcMain, userDataPath) {
   }
 }
 
-// Helper: allow IPC handles to be called internally
-// This patches ipcMain to support internal invoke
 function patchIpcMain(ipcMain) {
   const handlers = {};
   const origHandle = ipcMain.handle.bind(ipcMain);
@@ -194,6 +248,13 @@ function patchIpcMain(ipcMain) {
     if (handlers[channel]) return handlers[channel]({}, ...args);
     throw new Error(`No handler for ${channel}`);
   };
+
+  // Attach database reference directly to ipcMain for local queries
+  const getDBRef = () => {
+    const dbPath = path.join(require('electron').app.getPath('userData'), 'loratrainer', 'loratrainer.db');
+    return new (require('better-sqlite3'))(dbPath);
+  };
+  ipcMain._db = getDBRef();
 }
 
 module.exports = { register, patchIpcMain };
