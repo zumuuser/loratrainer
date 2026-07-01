@@ -204,17 +204,32 @@ App.registerPage('train', async (container) => {
   });
 
   // ── Launch ──
-  document.getElementById('launch-btn').onclick = async () => {
-    await saveConfigState();
-    
-    // Trigger training pipeline
-    const result = await window.api.training.start(jobId);
-    if (result.error) {
-      App.toast(`Launch failed: ${result.error}`, 'error');
-    } else {
+  const jobs = await window.api.db.getJobs();
+  const activeJob = jobs.find(j => ['uploading', 'training', 'generating_samples'].includes(j.status));
+  const launchBtn = document.getElementById('launch-btn');
+
+  if (activeJob) {
+    launchBtn.disabled = true;
+    launchBtn.classList.remove('btn-primary');
+    launchBtn.classList.add('btn-secondary');
+    launchBtn.style.cursor = 'not-allowed';
+    launchBtn.innerHTML = `⚠️ Active job in progress: "${activeJob.name}"`;
+  } else {
+    launchBtn.onclick = async () => {
+      await saveConfigState();
+      
+      launchBtn.disabled = true;
+      launchBtn.innerHTML = `<span style="display: inline-block; animation: spin 1s linear infinite; margin-right: 4px;">↻</span> Launching...`;
+      
+      // Trigger training pipeline in background
+      window.api.training.start(jobId).then((result) => {
+        if (result && result.error) {
+          App.toast(`Launch failed: ${result.error}`, 'error');
+        }
+      });
+      
       sessionStorage.removeItem('currentJobId');
-      App.toast('Training job created and launched!');
       App.navigate('dashboard');
-    }
-  };
+    };
+  }
 });

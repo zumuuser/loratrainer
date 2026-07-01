@@ -107,21 +107,25 @@ async function runpodListGPUs(apiKey, minVram = 24) {
     .slice(0, 20);
 }
 
-async function runpodCreatePod(apiKey, gpuTypeId, dockerImage, envVars = {}) {
+async function runpodCreatePod(apiKey, gpuTypeId, dockerImage, envVars = {}, containerRegistryAuthId = null) {
   const envArray = Object.entries(envVars).map(([key, value]) => ({ key, value }));
+  const input = {
+    name: 'loratrainer-job',
+    imageName: dockerImage,
+    gpuTypeId,
+    gpuCount: 1,
+    volumeInGb: 50,
+    containerDiskInGb: 20,
+    env: envArray,
+    startSsh: true,
+  };
+  if (containerRegistryAuthId) {
+    input.containerRegistryAuthId = containerRegistryAuthId;
+  }
   const data = await runpodGQL(apiKey, `
     mutation($input: PodFindAndDeployOnDemandInput!) { podFindAndDeployOnDemand(input: $input) { id } }
   `, {
-    input: {
-      name: 'loratrainer-job',
-      imageName: dockerImage,
-      gpuTypeId,
-      gpuCount: 1,
-      volumeInGb: 50,
-      containerDiskInGb: 20,
-      env: envArray,
-      startSsh: true,
-    },
+    input
   });
   return data.podFindAndDeployOnDemand;
 }
@@ -171,7 +175,7 @@ function register(ipcMain) {
   ipcMain.handle('gpu:createInstance', async (_, provider, apiKey, params) => {
     try {
       if (provider === 'vastai') return await vastaiCreateInstance(apiKey, params.offerId, params.image, params.env);
-      if (provider === 'runpod') return await runpodCreatePod(apiKey, params.gpuTypeId, params.image, params.env);
+      if (provider === 'runpod') return await runpodCreatePod(apiKey, params.gpuTypeId, params.image, params.env, params.containerRegistryAuthId);
       return { error: 'Unknown provider' };
     } catch (err) { return { error: err.message }; }
   });

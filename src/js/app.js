@@ -51,6 +51,34 @@ const App = (() => {
     setTimeout(() => { el.remove(); }, 3500);
   }
 
+  async function checkForUpdates() {
+    try {
+      const res = await window.api.updater.check();
+      if (res && res.updateAvailable && !res.error) {
+        const updateCard = document.getElementById('update-notification');
+        if (updateCard) {
+          updateCard.classList.remove('hidden');
+          const btn = document.getElementById('update-btn');
+          btn.onclick = async () => {
+            btn.disabled = true;
+            btn.innerHTML = `<span style="display: inline-block; animation: spin 1s linear infinite; margin-right: 4px;">↻</span> Updating...`;
+            toast('Downloading update from GitHub...', 'info');
+            const success = await window.api.updater.perform(res.latestSha);
+            if (success && !success.error) {
+              toast('Update installed! Relaunching...', 'success');
+            } else {
+              toast(`Update failed: ${success.error || 'unknown error'}`, 'error');
+              btn.disabled = false;
+              btn.textContent = 'Update App';
+            }
+          };
+        }
+      }
+    } catch (e) {
+      console.error('Failed checking for updates:', e);
+    }
+  }
+
   // Init
   async function init() {
     // Nav click handlers
@@ -60,7 +88,12 @@ const App = (() => {
 
     // Check onboarding
     const onboarded = await window.api.db.isOnboarded();
-    navigate(onboarded ? 'dashboard' : 'onboarding');
+    await navigate(onboarded ? 'dashboard' : 'onboarding');
+
+    // Run update check
+    if (onboarded) {
+      checkForUpdates();
+    }
   }
 
   // Boot on DOM ready

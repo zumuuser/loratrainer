@@ -6,15 +6,30 @@ const fs = require('fs');
 const userDataPath = path.join(app.getPath('userData'), 'loratrainer');
 if (!fs.existsSync(userDataPath)) fs.mkdirSync(userDataPath, { recursive: true });
 
+const appUpdatePath = path.join(userDataPath, 'app');
+
+let bootPath = __dirname;
+let htmlPath = path.join(__dirname, '..', 'src', 'index.html');
+let preloadPath = path.join(__dirname, 'preload.js');
+
+if (fs.existsSync(path.join(appUpdatePath, 'src', 'index.html'))) {
+  console.log('Booting from user-data update directory:', appUpdatePath);
+  bootPath = path.join(appUpdatePath, 'electron');
+  htmlPath = path.join(appUpdatePath, 'src', 'index.html');
+  preloadPath = path.join(appUpdatePath, 'electron', 'preload.js');
+}
+
 // Register IPC handlers
 const registerIPC = () => {
-  const training = require('./ipc/training');
+  const trainingPath = path.join(bootPath, 'ipc', 'training');
+  const training = require(trainingPath);
   training.patchIpcMain(ipcMain);
 
-  require('./ipc/database').register(ipcMain, userDataPath);
-  require('./ipc/storage').register(ipcMain, userDataPath);
-  require('./ipc/openrouter').register(ipcMain);
-  require('./ipc/gpu-provider').register(ipcMain);
+  require(path.join(bootPath, 'ipc', 'database')).register(ipcMain, userDataPath);
+  require(path.join(bootPath, 'ipc', 'storage')).register(ipcMain, userDataPath);
+  require(path.join(bootPath, 'ipc', 'openrouter')).register(ipcMain);
+  require(path.join(bootPath, 'ipc', 'gpu-provider')).register(ipcMain);
+  require(path.join(bootPath, 'ipc', 'updater')).register(ipcMain, userDataPath, appUpdatePath);
   training.register(ipcMain, userDataPath);
 };
 
@@ -29,13 +44,13 @@ function createWindow() {
     title: 'LoRA Trainer',
     backgroundColor: '#0a0a0f',
     webPreferences: {
-      preload: path.join(__dirname, 'preload.js'),
+      preload: preloadPath,
       contextIsolation: true,
       nodeIntegration: false,
     },
   });
 
-  mainWindow.loadFile(path.join(__dirname, '..', 'src', 'index.html'));
+  mainWindow.loadFile(htmlPath);
 
   // Open DevTools in development
   if (process.env.NODE_ENV === 'development') {

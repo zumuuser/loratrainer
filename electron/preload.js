@@ -56,4 +56,10 @@ contextBridge.exposeInMainWorld('api', {
     onComplete: (callback) => ipcRenderer.on('training:complete', (_, data) => callback(data)),
     onError: (callback) => ipcRenderer.on('training:error', (_, data) => callback(data)),
   },
+
+  // Updater
+  updater: {
+    check: () => ipcRenderer.invoke('updater:check'),
+    perform: (latestSha) => ipcRenderer.invoke('updater:perform', latestSha),
+  },
 });

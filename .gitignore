@@ -3,3 +3,4 @@ dist/
 *.db
 .env
 user_data/
+build_artifacts/

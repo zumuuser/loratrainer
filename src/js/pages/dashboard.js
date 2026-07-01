@@ -134,6 +134,11 @@ App.registerPage('dashboard', async (container) => {
               App.navigate('dashboard');
             },
             onStart: async (id) => {
+              const active = jobs.find(j => j.id !== id && ['uploading', 'training', 'generating_samples'].includes(j.status));
+              if (active) {
+                App.toast(`Active job "${active.name}" is already running!`, 'error');
+                return;
+              }
               const res = await window.api.training.start(id);
               if (res.error) {
                 App.toast(res.error, 'error');
