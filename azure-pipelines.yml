@@ -32,3 +32,18 @@ stages:
               publishLocation: 'Container'
             displayName: 'Publish Linux Artifacts'
 
+      # Docker Image Build & Push
+      - job: Build_Docker
+        displayName: 'Build and Push Docker Image'
+        pool:
+          vmImage: 'ubuntu-latest'
+        steps:
+          - script: |
+              echo $(GITHUB_TOKEN) | docker login ghcr.io -u zumuuser --password-stdin
+              docker build -t ghcr.io/zumuuser/loratrainer/trainer:latest training/docker
+              docker push ghcr.io/zumuuser/loratrainer/trainer:latest
+            displayName: 'Build and Push Docker to GHCR'
+            env:
+              GITHUB_TOKEN: $(GITHUB_TOKEN)
+
+

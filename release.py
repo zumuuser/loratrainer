@@ -44,7 +44,6 @@ def request_json(url, headers=None, method='GET', data=None):
         raise e
 
 # 1. Trigger a new pipeline run
-print("Triggering new Azure DevOps pipeline run...")
 trigger_url = "https://dev.azure.com/mushkudianizuka/LoRA%20Trainer/_apis/pipelines/2/runs?api-version=7.1"
 trigger_data = {"resources": {"repositories": {"self": {"refName": "refs/heads/main"}}}}
 trigger_res = request_json(trigger_url, headers=devops_headers, method='POST', data=trigger_data)
@@ -113,14 +112,14 @@ if not release_assets:
 
 print(f"Found assets to upload: {release_assets}")
 
-# 4. Create or Get GitHub Release v0.5.0
-tag = 'v0.5.0'
+# 4. Create or Get GitHub Release v0.6.0
+tag = 'v0.6.0'
 release_url = f"https://api.github.com/repos/{repo}/releases"
 release_data = {
     "tag_name": tag,
     "target_commitish": "main",
     "name": f"Release {tag}",
-    "body": "v0.5.0 — Fresh compiled build containing: reliable job cancellation, dual GPU provider keys (Vast.ai + RunPod), OpenRouter model dropdown, fixed OTA updater, and Module Path resolution fallback for updates.",
+    "body": "v0.6.0 — Fresh compiled build containing: reliable job cancellation, dual GPU provider keys (Vast.ai + RunPod), OpenRouter model dropdown, fixed OTA updater, Module Path resolution fallback for updates, and automatic Docker GHCR image build.",
     "draft": False,
     "prerelease": False
 }

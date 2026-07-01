@@ -11,6 +11,10 @@
   },
   "author": "zumuuser <zumuuser@gmail.com>",
   "homepage": "https://github.com/zumuuser/loratrainer",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/zumuuser/loratrainer.git"
+  },
   "license": "UNLICENSED",
   "private": true,
   "devDependencies": {

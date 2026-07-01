@@ -14,7 +14,7 @@ App.registerPage('settings', async (container) => {
     else if (provider === 'runpod') runpodKey = fallbackGpuKey;
   }
 
-  const dockerImage = await window.api.db.getSetting('docker_image') || 'loratrainer/trainer:latest';
+  const dockerImage = await window.api.db.getSetting('docker_image') || 'ghcr.io/zumuuser/loratrainer/trainer:latest';
   const registryAuthId = await window.api.db.getSetting('runpod_registry_auth_id') || '';
   const githubToken = await window.api.db.getSetting('github_token') || '';
 
@@ -69,7 +69,7 @@ App.registerPage('settings', async (container) => {
         <h3 style="font-weight:600;margin-bottom:12px">Advanced / Container Settings</h3>
         <div class="input-group">
           <label class="input-label">Docker Image for LoRA Trainer</label>
-          <input class="input" id="set-docker-image" value="${dockerImage}" placeholder="loratrainer/trainer:latest">
+          <input class="input" id="set-docker-image" value="${dockerImage}" placeholder="ghcr.io/zumuuser/loratrainer/trainer:latest">
         </div>
         <div class="input-group mt-sm">
           <label class="input-label">RunPod Registry Auth ID (Optional, for private images)</label>

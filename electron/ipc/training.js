@@ -62,7 +62,7 @@ function register(ipcMain, userDataPath) {
         ? gpuList.find(g => g.id === job.gpu_type) || gpuList[0]
         : gpuList[0];
 
-      const dockerImage = await ipcMain._invokeHandler('db:getSetting', 'docker_image') || 'loratrainer/trainer:latest';
+      const dockerImage = await ipcMain._invokeHandler('db:getSetting', 'docker_image') || 'ghcr.io/zumuuser/loratrainer/trainer:latest';
       const containerRegistryAuthId = await ipcMain._invokeHandler('db:getSetting', 'runpod_registry_auth_id') || null;
       const envVars = {
         JOB_ID: String(jobId),
