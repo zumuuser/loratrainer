@@ -8,11 +8,14 @@ if (!fs.existsSync(userDataPath)) fs.mkdirSync(userDataPath, { recursive: true }
 
 // Register IPC handlers
 const registerIPC = () => {
+  const training = require('./ipc/training');
+  training.patchIpcMain(ipcMain);
+
   require('./ipc/database').register(ipcMain, userDataPath);
   require('./ipc/storage').register(ipcMain, userDataPath);
   require('./ipc/openrouter').register(ipcMain);
   require('./ipc/gpu-provider').register(ipcMain);
-  require('./ipc/training').register(ipcMain, userDataPath);
+  training.register(ipcMain, userDataPath);
 };
 
 let mainWindow;
