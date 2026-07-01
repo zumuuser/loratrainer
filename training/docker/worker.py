@@ -92,7 +92,10 @@ def run_server():
     server = http.server.HTTPServer(('', PORT), WorkerHandler)
     print(f"Worker server listening on port {PORT}...")
     while not start_training:
-        server.handle_request()
+        try:
+            server.handle_request()
+        except Exception as e:
+            print(f"Server request handling error: {e}", file=sys.stderr)
     print("Received start signal. Closing upload server and beginning training...")
     server.server_close()
 

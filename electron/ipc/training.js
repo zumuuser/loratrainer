@@ -168,12 +168,29 @@ function register(ipcMain, userDataPath) {
           caption: img.caption || ''
         };
 
-        const upRes = await fetch(`${endpoint}/upload`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(payload),
-        });
-        if (!upRes.ok) throw new Error(`Dataset upload failed for image ${filename}: ${await upRes.text()}`);
+        let upRes;
+        let uploadSuccess = false;
+        let lastError = '';
+        for (let attempt = 1; attempt <= 3; attempt++) {
+          try {
+            upRes = await fetch(`${endpoint}/upload`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(payload),
+            });
+            if (upRes.ok) {
+              uploadSuccess = true;
+              break;
+            }
+            lastError = await upRes.text();
+          } catch (err) {
+            lastError = err.message;
+          }
+          if (attempt < 3) {
+            await new Promise(r => setTimeout(r, 2000));
+          }
+        }
+        if (!uploadSuccess) throw new Error(`Dataset upload failed for image ${filename}: ${lastError}`);
 
         const pct = 20 + Math.round(((i + 1) / dbImages.length) * 50); // 20% to 70%
         event.sender.send('training:progress', { jobId, status: 'uploading', progress: pct, message: `Uploading dataset ${i + 1}/${dbImages.length}...` });
