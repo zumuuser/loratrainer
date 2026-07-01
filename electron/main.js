@@ -8,14 +8,28 @@ if (!fs.existsSync(userDataPath)) fs.mkdirSync(userDataPath, { recursive: true }
 
 const appUpdatePath = path.join(userDataPath, 'app');
 
-// Allow OTA updates to resolve native dependencies from the original packaged app asar
+// Allow OTA updates to resolve dependencies from the original packaged app node_modules
 const Module = require('module');
-if (Module.globalPaths) {
-  const appNodeModules = path.join(app.getAppPath(), 'node_modules');
-  if (!Module.globalPaths.includes(appNodeModules)) {
-    Module.globalPaths.push(appNodeModules);
+const originalResolveFilename = Module._resolveFilename;
+Module._resolveFilename = function (request, parent, isMain, options) {
+  try {
+    return originalResolveFilename.apply(this, arguments);
+  } catch (err) {
+    if (!request.startsWith('.') && !request.startsWith('/') && !request.startsWith('\\')) {
+      const appNodeModules = path.join(app.getAppPath(), 'node_modules');
+      try {
+        return originalResolveFilename(request, {
+          id: parent.id,
+          filename: parent.filename,
+          paths: [appNodeModules].concat(parent.paths || [])
+        }, isMain, options);
+      } catch (err2) {
+        // ignore and let original error throw
+      }
+    }
+    throw err;
   }
-}
+};
 
 let bootPath = __dirname;
 let htmlPath = path.join(__dirname, '..', 'src', 'index.html');
