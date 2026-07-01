@@ -9,8 +9,12 @@ import sys
 import glob
 
 # Credentials
-devops_token = os.environ.get('DEVOPS_TOKEN', '1GMGoN4z71jeWqjDM0cbMi4I46mKhBqS4GdTGvisnofT4wQaq4tAJQQJ99CGACAAAAAAAAAAAAASAZDO2saa')
-github_token = os.environ.get('GITHUB_TOKEN', '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')
+# Credentials — set via environment variables: DEVOPS_TOKEN and GITHUB_TOKEN
+devops_token = os.environ.get('DEVOPS_TOKEN', '')
+github_token = os.environ.get('GITHUB_TOKEN', '')
+if not devops_token or not github_token:
+    print("Error: DEVOPS_TOKEN and GITHUB_TOKEN environment variables must be set.", file=sys.stderr)
+    sys.exit(1)
 repo = 'zumuuser/loratrainer'
 
 # Auth headers
@@ -39,13 +43,17 @@ def request_json(url, headers=None, method='GET', data=None):
         print(f"HTTP Error {e.code} for URL {url}: {body}", file=sys.stderr)
         raise e
 
-# 1. Fetch latest DevOps run ID
-print("Fetching latest build run ID from Azure DevOps...")
-latest_run_url = "https://dev.azure.com/mushkudianizuka/LoRA%20Trainer/_apis/pipelines/2/runs?api-version=7.1"
-runs_data = request_json(latest_run_url, headers=devops_headers)
-run_id = runs_data['value'][0]['id']
-print(f"Starting polling for Azure DevOps Build Run {run_id}...")
+# 1. Trigger a new pipeline run
+print("Triggering new Azure DevOps pipeline run...")
+trigger_url = "https://dev.azure.com/mushkudianizuka/LoRA%20Trainer/_apis/pipelines/2/runs?api-version=7.1"
+trigger_data = {"resources": {"repositories": {"self": {"refName": "refs/heads/main"}}}}
+trigger_res = request_json(trigger_url, headers=devops_headers, method='POST', data=trigger_data)
+run_id = trigger_res['id']
+print(f"Pipeline run triggered! Run ID: {run_id}")
+
+# 2. Poll until complete
 build_url = f"https://dev.azure.com/mushkudianizuka/LoRA%20Trainer/_apis/build/builds/{run_id}?api-version=7.1"
+print(f"Polling build {run_id}...")
 
 while True:
     try:
@@ -67,7 +75,7 @@ while True:
         print(f"Polling error: {e}")
         time.sleep(15)
 
-# 2. Get artifacts
+# 3. Get artifacts
 print("Fetching build artifacts info...")
 artifacts_url = f"https://dev.azure.com/mushkudianizuka/LoRA%20Trainer/_apis/build/builds/{run_id}/artifacts?api-version=7.1"
 artifacts_data = request_json(artifacts_url, headers=devops_headers)
@@ -84,7 +92,6 @@ for art in artifacts_data.get('value', []):
     zip_path = f"build_artifacts/{name}.zip"
     print(f"Downloading artifact {name} from {download_url}...")
     
-    # Download file
     req = urllib.request.Request(download_url, headers=devops_headers)
     with urllib.request.urlopen(req) as res, open(zip_path, 'wb') as out:
         out.write(res.read())
@@ -106,14 +113,14 @@ if not release_assets:
 
 print(f"Found assets to upload: {release_assets}")
 
-# 3. Create or Get GitHub Release v0.2.0
-tag = 'v0.2.0'
+# 4. Create or Get GitHub Release v0.3.0
+tag = 'v0.3.0'
 release_url = f"https://api.github.com/repos/{repo}/releases"
 release_data = {
     "tag_name": tag,
     "target_commitish": "main",
     "name": f"Release {tag}",
-    "body": "Production-ready Release v0.2.0 stabilizing training pipeline, dynamic GPU selector, OpenRouter model dropdown, and minimalist Attio CRM theme.",
+    "body": "v0.3.0 — Reliable job cancellation & deletion, dual-provider GPU API keys (Vast.ai + RunPod), OpenRouter model selector, companion caption import, and fixed OTA updater.",
     "draft": False,
     "prerelease": False
 }
