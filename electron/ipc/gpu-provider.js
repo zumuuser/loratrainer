@@ -91,7 +91,7 @@ async function runpodListGPUs(apiKey, minVram = 24) {
   const data = await runpodGQL(apiKey, `{
     gpuTypes {
       id displayName memoryInGb
-      lowestPrice(gpuCount:1, input:{gpuCount:1}) { minimumBidPrice uninterruptablePrice }
+      lowestPrice(input: {gpuCount: 1}) { minimumBidPrice uninterruptablePrice }
     }
   }`);
   return (data.gpuTypes || [])

@@ -26,7 +26,7 @@ App.registerPage('upload', async (container) => {
   const job = await window.api.db.getJob(jobId);
 
   container.innerHTML = `
-    <div class="page">
+    <div class="page" style="padding-bottom: 80px;">
       <div class="page-header">
         <h1 class="page-title">New Training Job</h1>
         <p class="page-subtitle">Upload your training images and generate captions</p>
@@ -56,7 +56,7 @@ App.registerPage('upload', async (container) => {
       <div id="upload-grid" class="mt-lg"></div>
 
       <!-- Actions -->
-      <div id="upload-actions" class="flex gap-md mt-lg hidden" style="position:sticky;bottom:0;padding:16px 0;background:var(--bg-base)">
+      <div id="upload-actions" class="flex gap-md mt-lg hidden" style="position:fixed;bottom:0;left:var(--sidebar-w);right:0;padding:16px var(--space-xl);background:var(--bg-surface);border-top:1px solid var(--border);z-index:100">
         <span class="text-sm text-muted flex items-center" id="img-count">0 images</span>
         <button class="btn btn-secondary" id="upload-caption-btn">✨ Auto-Caption All</button>
         <button class="btn btn-secondary" id="upload-add-more">+ Add More</button>
