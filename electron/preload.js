@@ -15,6 +15,9 @@ contextBridge.exposeInMainWorld('api', {
     getModel: (id) => ipcRenderer.invoke('db:getModel', id),
     deleteModel: (id) => ipcRenderer.invoke('db:deleteModel', id),
     isOnboarded: () => ipcRenderer.invoke('db:isOnboarded'),
+    saveDatasetImages: (jobId, images) => ipcRenderer.invoke('db:saveDatasetImages', jobId, images),
+    getDatasetImages: (jobId) => ipcRenderer.invoke('db:getDatasetImages', jobId),
+    updateCaption: (imageId, caption) => ipcRenderer.invoke('db:updateCaption', imageId, caption),
   },
 
   // Storage
@@ -29,6 +32,7 @@ contextBridge.exposeInMainWorld('api', {
   // OpenRouter
   openrouter: {
     caption: (imagePaths, apiKey) => ipcRenderer.invoke('openrouter:caption', imagePaths, apiKey),
+    onCaptionProgress: (callback) => ipcRenderer.on('openrouter:captionProgress', (_, data) => callback(data)),
     chat: (messages, apiKey) => ipcRenderer.invoke('openrouter:chat', messages, apiKey),
     validateKey: (apiKey) => ipcRenderer.invoke('openrouter:validateKey', apiKey),
   },
