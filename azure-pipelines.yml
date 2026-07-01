@@ -24,6 +24,8 @@ stages:
           - script: |
               npm run build:linux
             displayName: 'Compile to .deb'
+            env:
+              GH_TOKEN: $(GITHUB_TOKEN)
 
           - task: PublishBuildArtifacts@1
             inputs:
