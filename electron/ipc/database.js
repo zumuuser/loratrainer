@@ -13,6 +13,20 @@ function init(userDataPath) {
   // Run schema
   const schema = fs.readFileSync(path.join(__dirname, '..', '..', 'db', 'schema.sql'), 'utf8');
   db.exec(schema);
+
+  // Migration: update legacy docker image setting
+  try {
+    const row = db.prepare('SELECT value FROM settings WHERE key = ?').get('docker_image');
+    if (row) {
+      const val = JSON.parse(row.value);
+      if (val === 'loratrainer/trainer:latest') {
+        db.prepare('INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)').run('docker_image', JSON.stringify('ghcr.io/zumuuser/loratrainer/trainer:latest'));
+      }
+    }
+  } catch (e) {
+    console.error('Migration error:', e);
+  }
+
   return db;
 }
 
