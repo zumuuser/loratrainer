@@ -1,0 +1,47 @@
+{
+  "name": "loratrainer",
+  "version": "0.1.0",
+  "description": "Desktop app for training character LoRA models on cloud GPUs",
+  "main": "electron/main.js",
+  "scripts": {
+    "start": "electron .",
+    "dev": "NODE_ENV=development electron .",
+    "build:win": "electron-builder --win",
+    "build:linux": "electron-builder --linux"
+  },
+  "author": "zumuuser",
+  "license": "UNLICENSED",
+  "private": true,
+  "devDependencies": {
+    "electron": "^35.0.0",
+    "electron-builder": "^25.0.0"
+  },
+  "dependencies": {
+    "better-sqlite3": "^11.0.0",
+    "node-fetch": "^3.3.2"
+  },
+  "build": {
+    "appId": "com.loratrainer.app",
+    "productName": "LoRA Trainer",
+    "directories": {
+      "output": "dist"
+    },
+    "files": [
+      "electron/**/*",
+      "src/**/*",
+      "training/templates/**/*",
+      "db/**/*",
+      "node_modules/**/*",
+      "package.json"
+    ],
+    "win": {
+      "target": "nsis",
+      "icon": "src/assets/icon.ico"
+    },
+    "linux": {
+      "target": "deb",
+      "icon": "src/assets/icon.png",
+      "category": "Graphics"
+    }
+  }
+}
