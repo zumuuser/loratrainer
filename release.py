@@ -113,14 +113,14 @@ if not release_assets:
 
 print(f"Found assets to upload: {release_assets}")
 
-# 4. Create or Get GitHub Release v0.3.0
-tag = 'v0.3.0'
+# 4. Create or Get GitHub Release v0.4.0
+tag = 'v0.4.0'
 release_url = f"https://api.github.com/repos/{repo}/releases"
 release_data = {
     "tag_name": tag,
     "target_commitish": "main",
     "name": f"Release {tag}",
-    "body": "v0.3.0 — Reliable job cancellation & deletion, dual-provider GPU API keys (Vast.ai + RunPod), OpenRouter model selector, companion caption import, and fixed OTA updater.",
+    "body": "v0.4.0 — Fresh compiled build containing: reliable job cancellation, dual GPU provider keys (Vast.ai + RunPod), OpenRouter model dropdown, and fixed OTA updater.",
     "draft": False,
     "prerelease": False
 }
