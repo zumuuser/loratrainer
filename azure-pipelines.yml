@@ -1,0 +1,59 @@
+# LoRA Trainer — Azure DevOps Compilation Pipeline
+trigger:
+  - main
+
+stages:
+  - stage: Build
+    displayName: 'Build and Compile'
+    jobs:
+      # Linux Compilation (.deb)
+      - job: Build_Linux
+        displayName: 'Build Linux (.deb)'
+        pool:
+          vmImage: 'ubuntu-latest'
+        steps:
+          - task: NodeTool@0
+            inputs:
+              versionSpec: '20.x'
+            displayName: 'Install Node.js'
+
+          - script: |
+              npm ci
+            displayName: 'Install dependencies'
+
+          - script: |
+              npm run build:linux
+            displayName: 'Compile to .deb'
+
+          - task: PublishBuildArtifacts@1
+            inputs:
+              PathtoPublish: 'dist'
+              ArtifactName: 'loratrainer-linux'
+              publishLocation: 'Container'
+            displayName: 'Publish Linux Artifacts'
+
+      # Windows Compilation (.exe)
+      - job: Build_Windows
+        displayName: 'Build Windows (.exe)'
+        pool:
+          vmImage: 'windows-latest'
+        steps:
+          - task: NodeTool@0
+            inputs:
+              versionSpec: '20.x'
+            displayName: 'Install Node.js'
+
+          - script: |
+              npm ci
+            displayName: 'Install dependencies'
+
+          - script: |
+              npm run build:win
+            displayName: 'Compile to .exe'
+
+          - task: PublishBuildArtifacts@1
+            inputs:
+              PathtoPublish: 'dist'
+              ArtifactName: 'loratrainer-windows'
+              publishLocation: 'Container'
+            displayName: 'Publish Windows Artifacts'
