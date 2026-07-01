@@ -8,6 +8,15 @@ if (!fs.existsSync(userDataPath)) fs.mkdirSync(userDataPath, { recursive: true }
 
 const appUpdatePath = path.join(userDataPath, 'app');
 
+// Allow OTA updates to resolve native dependencies from the original packaged app asar
+const Module = require('module');
+if (Module.globalPaths) {
+  const appNodeModules = path.join(app.getAppPath(), 'node_modules');
+  if (!Module.globalPaths.includes(appNodeModules)) {
+    Module.globalPaths.push(appNodeModules);
+  }
+}
+
 let bootPath = __dirname;
 let htmlPath = path.join(__dirname, '..', 'src', 'index.html');
 let preloadPath = path.join(__dirname, 'preload.js');
