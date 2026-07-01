@@ -72,9 +72,10 @@ function register(ipcMain) {
   });
 
   // Caption images one-by-one (cost-conscious: no batching large payloads)
-  ipcMain.handle('openrouter:caption', async (event, imagePaths, apiKey) => {
+  ipcMain.handle('openrouter:caption', async (event, imagePaths, apiKey, model) => {
     const captions = [];
     let totalCost = 0;
+    const selectedModel = model || CAPTION_MODEL;
 
     for (let i = 0; i < imagePaths.length; i++) {
       try {
@@ -92,9 +93,9 @@ function register(ipcMain) {
 
         let result;
         try {
-          result = await callOpenRouter(apiKey, CAPTION_MODEL, messages);
-        } catch {
-          // Try fallback model
+          result = await callOpenRouter(apiKey, selectedModel, messages);
+        } catch (err) {
+          // If custom model failed, try primary fallback
           result = await callOpenRouter(apiKey, CAPTION_MODEL_FALLBACK, messages);
         }
 
@@ -117,9 +118,10 @@ function register(ipcMain) {
   });
 
   // Chat completion for config generation
-  ipcMain.handle('openrouter:chat', async (_, messages, apiKey) => {
+  ipcMain.handle('openrouter:chat', async (_, messages, apiKey, model) => {
     try {
-      const result = await callOpenRouter(apiKey, CAPTION_MODEL, messages, 800);
+      const selectedModel = model || CAPTION_MODEL;
+      const result = await callOpenRouter(apiKey, selectedModel, messages, 800);
       return { content: result.content, cost: result.cost };
     } catch (err) {
       return { error: err.message };

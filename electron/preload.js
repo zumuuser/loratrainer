@@ -18,6 +18,7 @@ contextBridge.exposeInMainWorld('api', {
     saveDatasetImages: (jobId, images) => ipcRenderer.invoke('db:saveDatasetImages', jobId, images),
     getDatasetImages: (jobId) => ipcRenderer.invoke('db:getDatasetImages', jobId),
     updateCaption: (imageId, caption) => ipcRenderer.invoke('db:updateCaption', imageId, caption),
+    deleteDatasetImage: (imageId) => ipcRenderer.invoke('db:deleteDatasetImage', imageId),
   },
 
   // Storage
@@ -33,15 +34,15 @@ contextBridge.exposeInMainWorld('api', {
 
   // OpenRouter
   openrouter: {
-    caption: (imagePaths, apiKey) => ipcRenderer.invoke('openrouter:caption', imagePaths, apiKey),
+    caption: (imagePaths, apiKey, model) => ipcRenderer.invoke('openrouter:caption', imagePaths, apiKey, model),
     onCaptionProgress: (callback) => ipcRenderer.on('openrouter:captionProgress', (_, data) => callback(data)),
-    chat: (messages, apiKey) => ipcRenderer.invoke('openrouter:chat', messages, apiKey),
+    chat: (messages, apiKey, model) => ipcRenderer.invoke('openrouter:chat', messages, apiKey, model),
     validateKey: (apiKey) => ipcRenderer.invoke('openrouter:validateKey', apiKey),
   },
 
   // GPU Provider
   gpu: {
-    listGPUs: (provider, apiKey) => ipcRenderer.invoke('gpu:listGPUs', provider, apiKey),
+    listGPUs: (provider, apiKey, minVram) => ipcRenderer.invoke('gpu:listGPUs', provider, apiKey, minVram),
     validateKey: (provider, apiKey) => ipcRenderer.invoke('gpu:validateKey', provider, apiKey),
     suggest: (baseModel) => ipcRenderer.invoke('gpu:suggest', baseModel),
   },

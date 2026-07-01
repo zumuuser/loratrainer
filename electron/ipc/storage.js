@@ -10,10 +10,38 @@ function register(ipcMain, userDataPath) {
   ipcMain.handle('storage:saveImages', async (_, filePaths) => {
     const saved = [];
     for (const fp of filePaths) {
+      const ext = path.extname(fp).toLowerCase();
+      if (!['.jpg', '.jpeg', '.png', '.webp'].includes(ext)) {
+        continue; // skip text/json files themselves, they are read as companions
+      }
+
       const fname = `${Date.now()}_${path.basename(fp)}`;
       const dest = path.join(imgDir, fname);
       fs.copyFileSync(fp, dest);
-      saved.push({ original: fp, saved: dest, filename: fname });
+
+      // Check for matching caption file in the same directory
+      let caption = '';
+      const baseNoExt = fp.slice(0, -ext.length);
+      const txtPath = baseNoExt + '.txt';
+      const jsonPath = baseNoExt + '.json';
+
+      if (fs.existsSync(txtPath)) {
+        try {
+          caption = fs.readFileSync(txtPath, 'utf8').trim();
+        } catch {}
+      } else if (fs.existsSync(jsonPath)) {
+        try {
+          const parsed = JSON.parse(fs.readFileSync(jsonPath, 'utf8'));
+          if (typeof parsed === 'string') {
+            caption = parsed;
+          } else if (parsed && typeof parsed === 'object') {
+            caption = parsed.caption || parsed.tags || parsed.description || parsed.text || '';
+            if (Array.isArray(caption)) caption = caption.join(', ');
+          }
+        } catch {}
+      }
+
+      saved.push({ original: fp, saved: dest, filename: fname, caption });
     }
     return saved;
   });
@@ -24,7 +52,9 @@ function register(ipcMain, userDataPath) {
   ipcMain.handle('storage:openFileDialog', async (_, options) => {
     const result = await dialog.showOpenDialog({
       properties: ['openFile', 'multiSelections'],
-      filters: [{ name: 'Images', extensions: ['jpg', 'jpeg', 'png', 'webp'] }],
+      filters: [
+        { name: 'Images & Captions', extensions: ['jpg', 'jpeg', 'png', 'webp', 'txt', 'json'] }
+      ],
       ...options,
     });
     return result.canceled ? [] : result.filePaths;

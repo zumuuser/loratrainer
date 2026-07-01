@@ -1,15 +1,20 @@
 /* Train Page — Configure + launch training */
 App.registerPage('train', async (container) => {
-  const pending = JSON.parse(sessionStorage.getItem('pendingJob') || 'null');
-  if (!pending) return App.navigate('upload');
+  let jobId = sessionStorage.getItem('currentJobId');
+  if (jobId) jobId = parseInt(jobId);
+  if (!jobId) return App.navigate('upload');
 
-  const provider = await window.api.db.getSetting('gpu_provider') || 'vastai';
+  const job = await window.api.db.getJob(jobId);
+  if (!job) return App.navigate('upload');
+
+  const config = JSON.parse(job.config || '{}');
+  const provider = job.gpu_provider || await window.api.db.getSetting('gpu_provider') || 'vastai';
 
   container.innerHTML = `
     <div class="page">
       <div class="page-header">
         <h1 class="page-title">Configure Training</h1>
-        <p class="page-subtitle">${pending.name} · ${pending.images.length} images</p>
+        <p class="page-subtitle" id="job-subtitle">${job.name || 'New LoRA Job'}</p>
       </div>
       <div class="grid-2 gap-lg">
         <!-- Left: Config Panel -->
@@ -18,13 +23,13 @@ App.registerPage('train', async (container) => {
             <h3 style="font-weight:600;margin-bottom:12px">Base Model</h3>
             <div class="flex gap-sm">
               <label class="card flex items-center gap-sm" style="padding:12px;cursor:pointer;flex:1">
-                <input type="radio" name="base_model" value="krea2" checked> KREA 2
+                <input type="radio" name="base_model" value="krea2" ${job.base_model === 'krea2' ? 'checked' : ''}> KREA 2
               </label>
               <label class="card flex items-center gap-sm" style="padding:12px;cursor:pointer;flex:1">
-                <input type="radio" name="base_model" value="ideogram4"> Ideogram 4
+                <input type="radio" name="base_model" value="ideogram4" ${job.base_model === 'ideogram4' ? 'checked' : ''}> Ideogram 4
               </label>
               <label class="card flex items-center gap-sm" style="padding:12px;cursor:pointer;flex:1">
-                <input type="radio" name="base_model" value="both"> Both
+                <input type="radio" name="base_model" value="both" ${job.base_model === 'both' ? 'checked' : ''}> Both
               </label>
             </div>
           </div>
@@ -40,19 +45,23 @@ App.registerPage('train', async (container) => {
           <div class="card mb-md">
             <h3 style="font-weight:600;margin-bottom:12px">Advanced Settings</h3>
             <div class="grid-2 gap-sm">
-              <div class="input-group"><label class="input-label">Learning Rate</label><input class="input" id="cfg-lr" type="number" value="0.0001" step="0.00001"></div>
-              <div class="input-group"><label class="input-label">LoRA Rank</label><input class="input" id="cfg-rank" type="number" value="16" step="4"></div>
-              <div class="input-group"><label class="input-label">Epochs</label><input class="input" id="cfg-epochs" type="number" value="20" step="5"></div>
+              <div class="input-group"><label class="input-label">Learning Rate</label><input class="input" id="cfg-lr" type="number" value="${config.lr || 0.0001}" step="0.00001"></div>
+              <div class="input-group"><label class="input-label">LoRA Rank</label><input class="input" id="cfg-rank" type="number" value="${config.rank || 16}" step="4"></div>
+              <div class="input-group"><label class="input-label">Epochs</label><input class="input" id="cfg-epochs" type="number" value="${config.epochs || 20}" step="5"></div>
               <div class="input-group"><label class="input-label">Resolution</label>
-                <select class="input" id="cfg-res"><option value="512">512</option><option value="768">768</option><option value="1024" selected>1024</option></select>
+                <select class="input" id="cfg-res">
+                  <option value="512" ${config.resolution === 512 ? 'selected' : ''}>512</option>
+                  <option value="768" ${config.resolution === 768 ? 'selected' : ''}>768</option>
+                  <option value="1024" ${config.resolution === 1024 || !config.resolution ? 'selected' : ''}>1024</option>
+                </select>
               </div>
             </div>
-            <div class="input-group mt-sm"><label class="input-label">Caption Prefix</label><input class="input" id="cfg-prefix" placeholder="e.g. a photo taken on an iphone 15, casual selfie"></div>
+            <div class="input-group mt-sm"><label class="input-label">Caption Prefix</label><input class="input" id="cfg-prefix" placeholder="e.g. a photo taken on an iphone 15, casual selfie" value="${config.caption_prefix || ''}"></div>
           </div>
           <div class="card mb-md" id="gpu-section"></div>
           <div class="card mb-md">
             <h3 style="font-weight:600;margin-bottom:12px">Spend Limit</h3>
-            <div class="input-group"><label class="input-label">Max cost for this job ($)</label><input class="input" id="cfg-limit" type="number" value="3.00" step="0.50" min="0.50"></div>
+            <div class="input-group"><label class="input-label">Max cost for this job ($)</label><input class="input" id="cfg-limit" type="number" value="${job.spend_limit || 3.00}" step="0.50" min="0.50"></div>
           </div>
           <button class="btn btn-primary btn-lg w-full" id="launch-btn">🚀 Launch Training</button>
         </div>
@@ -61,13 +70,43 @@ App.registerPage('train', async (container) => {
       </div>
     </div>`;
 
+  // Dynamic image counts
+  const dbImages = await window.api.db.getDatasetImages(jobId);
+  document.getElementById('job-subtitle').textContent = `${job.name || 'New LoRA Job'} · ${dbImages.length} images`;
+
+  // ── Autosave config function ──
+  async function saveConfigState() {
+    const configData = {
+      lr: parseFloat(document.getElementById('cfg-lr').value),
+      rank: parseInt(document.getElementById('cfg-rank').value),
+      epochs: parseInt(document.getElementById('cfg-epochs').value),
+      resolution: parseInt(document.getElementById('cfg-res').value),
+      caption_prefix: document.getElementById('cfg-prefix').value.trim(),
+    };
+    
+    await window.api.db.updateJob(jobId, {
+      base_model: baseModel(),
+      config: JSON.stringify(configData),
+      spend_limit: parseFloat(document.getElementById('cfg-limit').value),
+      gpu_provider: document.getElementById('cfg-provider')?.value || provider,
+      gpu_type: document.getElementById('cfg-gpu')?.value || 'auto'
+    });
+  }
+
+  // Bind autosave on input changes
+  const inputs = ['cfg-lr', 'cfg-rank', 'cfg-epochs', 'cfg-res', 'cfg-prefix', 'cfg-limit'];
+  inputs.forEach(id => {
+    document.getElementById(id).oninput = saveConfigState;
+  });
+
   // ── Chat-to-Config wiring ──
-  ChatConfig.render(document.getElementById('chat-panel'), (config) => {
-    if (config.lr) document.getElementById('cfg-lr').value = config.lr;
-    if (config.rank) document.getElementById('cfg-rank').value = config.rank;
-    if (config.epochs) document.getElementById('cfg-epochs').value = config.epochs;
-    if (config.resolution) document.getElementById('cfg-res').value = config.resolution;
-    if (config.caption_prefix) document.getElementById('cfg-prefix').value = config.caption_prefix;
+  ChatConfig.render(document.getElementById('chat-panel'), async (chatConfig) => {
+    if (chatConfig.lr) document.getElementById('cfg-lr').value = chatConfig.lr;
+    if (chatConfig.rank) document.getElementById('cfg-rank').value = chatConfig.rank;
+    if (chatConfig.epochs) document.getElementById('cfg-epochs').value = chatConfig.epochs;
+    if (chatConfig.resolution) document.getElementById('cfg-res').value = chatConfig.resolution;
+    if (chatConfig.caption_prefix) document.getElementById('cfg-prefix').value = chatConfig.caption_prefix;
+    await saveConfigState();
   });
 
   // ── Presets ──
@@ -77,7 +116,7 @@ App.registerPage('train', async (container) => {
     hq:       { lr: 0.00005, rank: 64, epochs: 40, desc: '~45 min · High rank · Best quality' },
   };
   document.querySelectorAll('.preset-btn').forEach(btn => {
-    btn.onclick = () => {
+    btn.onclick = async () => {
       document.querySelectorAll('.preset-btn').forEach(b => b.classList.remove('active'));
       btn.classList.add('active');
       const p = presets[btn.dataset.preset];
@@ -85,52 +124,97 @@ App.registerPage('train', async (container) => {
       document.getElementById('cfg-rank').value = p.rank;
       document.getElementById('cfg-epochs').value = p.epochs;
       document.getElementById('preset-desc').textContent = p.desc;
+      await saveConfigState();
     };
   });
 
   // ── GPU Picker ──
   const baseModel = () => document.querySelector('input[name="base_model"]:checked').value;
+
+  async function loadGPUs() {
+    const providerSelect = document.getElementById('cfg-provider');
+    const gpuSelect = document.getElementById('cfg-gpu');
+    if (!providerSelect || !gpuSelect) return;
+
+    const currentProvider = providerSelect.value;
+    gpuSelect.innerHTML = '<option value="auto">Loading GPUs...</option>';
+    gpuSelect.disabled = true;
+
+    try {
+      const key = await window.api.db.getSetting('gpu_api_key');
+      if (!key) {
+        gpuSelect.innerHTML = '<option value="auto">Auto (API key missing in settings)</option>';
+        gpuSelect.disabled = false;
+        return;
+      }
+
+      const minVram = baseModel() === 'both' ? 24 : 16;
+      const gpus = await window.api.gpu.listGPUs(currentProvider, key, minVram);
+      if (gpus.error || !gpus.length) {
+        gpuSelect.innerHTML = `<option value="auto">Auto (No active machines / API error: ${gpus.error || 'empty'})</option>`;
+      } else {
+        let html = '<option value="auto">Auto (best available)</option>';
+        gpus.forEach(gpu => {
+          const isSelected = job.gpu_type === gpu.id;
+          html += `<option value="${gpu.id}" ${isSelected ? 'selected' : ''}>${gpu.gpu || gpu.label} ($${(gpu.priceHr || 0).toFixed(3)}/hr)</option>`;
+        });
+        gpuSelect.innerHTML = html;
+      }
+    } catch (e) {
+      gpuSelect.innerHTML = `<option value="auto">Auto (Error: ${e.message})</option>`;
+    } finally {
+      gpuSelect.disabled = false;
+    }
+  }
+
   async function renderGPU() {
     const suggestion = await window.api.gpu.suggest(baseModel());
+    const savedProvider = job.gpu_provider || provider;
     document.getElementById('gpu-section').innerHTML = `
       <h3 style="font-weight:600;margin-bottom:12px">GPU Selection</h3>
       <div class="badge badge-info mb-md">Suggested: ${suggestion.recommended} · Est. ${suggestion.estCost}</div>
       <div class="input-group"><label class="input-label">Provider</label>
         <select class="input" id="cfg-provider">
-          <option value="vastai" ${provider==='vastai'?'selected':''}>Vast.ai</option>
-          <option value="runpod" ${provider==='runpod'?'selected':''}>RunPod</option>
+          <option value="vastai" ${savedProvider === 'vastai' ? 'selected' : ''}>Vast.ai</option>
+          <option value="runpod" ${savedProvider === 'runpod' ? 'selected' : ''}>RunPod</option>
         </select>
       </div>
       <div class="input-group"><label class="input-label">GPU Type (auto-selected if left default)</label>
         <select class="input" id="cfg-gpu"><option value="auto">Auto (best available)</option></select>
       </div>`;
+    
+    const providerSelect = document.getElementById('cfg-provider');
+    const gpuSelect = document.getElementById('cfg-gpu');
+    providerSelect.onchange = async () => {
+      await saveConfigState();
+      await loadGPUs();
+    };
+    gpuSelect.onchange = saveConfigState;
+    
+    await loadGPUs();
   }
-  renderGPU();
-  document.querySelectorAll('input[name="base_model"]').forEach(r => { r.onchange = renderGPU; });
+
+  await renderGPU();
+  
+  document.querySelectorAll('input[name="base_model"]').forEach(r => {
+    r.onchange = async () => {
+      await saveConfigState();
+      await renderGPU();
+    };
+  });
 
   // ── Launch ──
   document.getElementById('launch-btn').onclick = async () => {
-    const config = {
-      lr: parseFloat(document.getElementById('cfg-lr').value),
-      rank: parseInt(document.getElementById('cfg-rank').value),
-      epochs: parseInt(document.getElementById('cfg-epochs').value),
-      resolution: parseInt(document.getElementById('cfg-res').value),
-      caption_prefix: document.getElementById('cfg-prefix').value.trim(),
-    };
-    const jobData = {
-      name: pending.name,
-      base_model: baseModel(),
-      config: JSON.stringify(config),
-      dataset_path: '',
-      spend_limit: parseFloat(document.getElementById('cfg-limit').value),
-      gpu_provider: document.getElementById('cfg-provider')?.value || provider,
-      gpu_type: document.getElementById('cfg-gpu')?.value || 'auto',
-    };
-    const jobId = await window.api.db.createJob(jobData);
-    // Save dataset images to DB
-    await window.api.db.saveDatasetImages(jobId, pending.images);
-    sessionStorage.removeItem('pendingJob');
-    App.toast('Training job created!');
-    App.navigate('dashboard');
+    await saveConfigState();
+    
+    // Trigger training pipeline
+    const result = await window.api.training.start(jobId);
+    if (result.error) {
+      App.toast(`Launch failed: ${result.error}`, 'error');
+    } else {
+      sessionStorage.removeItem('currentJobId');
+      App.toast('Training job created and launched!');
+      App.navigate('dashboard');
+    }
   };
 });

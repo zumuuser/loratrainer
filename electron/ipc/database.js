@@ -18,6 +18,7 @@ function init(userDataPath) {
 
 function register(ipcMain, userDataPath) {
   init(userDataPath);
+  ipcMain._db = db;
 
   ipcMain.handle('db:getSetting', (_, key) => {
     const row = db.prepare('SELECT value FROM settings WHERE key = ?').get(key);
@@ -89,6 +90,11 @@ function register(ipcMain, userDataPath) {
 
   ipcMain.handle('db:updateCaption', (_, imageId, caption) => {
     db.prepare('UPDATE dataset_images SET caption = ? WHERE id = ?').run(caption, imageId);
+    return true;
+  });
+
+  ipcMain.handle('db:deleteDatasetImage', (_, imageId) => {
+    db.prepare('DELETE FROM dataset_images WHERE id = ?').run(imageId);
     return true;
   });
 }

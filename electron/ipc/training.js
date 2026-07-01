@@ -50,7 +50,6 @@ function register(ipcMain, userDataPath) {
 
       const dockerImage = 'loratrainer/trainer:latest';
       const envVars = {
-        CONFIG_YAML: template,
         JOB_ID: String(jobId),
       };
 
@@ -63,14 +62,86 @@ function register(ipcMain, userDataPath) {
 
       const instanceId = instance.id || instance.new_contract;
 
+      // Wait for the instance endpoint to boot up and respond
+      let endpoint = null;
+      let retries = 40; // 40 * 15s = 10 minutes max
+      while (retries > 0 && !endpoint) {
+        event.sender.send('training:progress', { jobId, status: 'uploading', progress: 10, message: `Provisioning container (retry ${41 - retries}/40)...` });
+        await new Promise(r => setTimeout(r, 15000));
+
+        const inst = await ipcMain._invokeHandler('gpu:getInstance', provider, gpuKey, instanceId);
+        if (provider === 'vastai' && inst && inst.public_ipaddr && inst.ports && inst.ports['8000/tcp']) {
+          const portObj = inst.ports['8000/tcp'][0];
+          if (portObj) endpoint = `http://${inst.public_ipaddr}:${portObj.HostPort}`;
+        } else if (provider === 'runpod' && inst && inst.runtime) {
+          // Check if port 8000 proxy is active
+          endpoint = `http://${instanceId}-8000.proxy.runpod.net`;
+        }
+        retries--;
+      }
+
+      if (!endpoint) throw new Error('Timeout waiting for GPU container web server to start.');
+
+      // Wait for HTTP connectivity to the upload endpoint
+      event.sender.send('training:progress', { jobId, status: 'uploading', progress: 20, message: 'Connecting to container upload server...' });
+      let connected = false;
+      for (let i = 0; i < 5; i++) {
+        try {
+          const check = await fetch(`${endpoint}/upload`, { method: 'POST', body: '{}', signal: AbortSignal.timeout(5000) });
+          connected = true;
+          break;
+        } catch {
+          await new Promise(r => setTimeout(r, 5000));
+        }
+      }
+
+      // Fetch images and captions from database
+      const dbImages = await ipcMain._invokeHandler('db:getDatasetImages', jobId);
+      if (!dbImages.length) throw new Error('No dataset images found in job database');
+
+      // Upload each image/caption companion to container
+      for (let i = 0; i < dbImages.length; i++) {
+        const img = dbImages[i];
+        if (!fs.existsSync(img.file_path)) continue;
+
+        const imgBuffer = fs.readFileSync(img.file_path);
+        const imageB64 = imgBuffer.toString('base64');
+        const filename = path.basename(img.file_path);
+
+        const payload = {
+          filename,
+          image_b64: imageB64,
+          caption: img.caption || ''
+        };
+
+        const upRes = await fetch(`${endpoint}/upload`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        });
+        if (!upRes.ok) throw new Error(`Dataset upload failed for image ${filename}: ${await upRes.text()}`);
+
+        const pct = 20 + Math.round(((i + 1) / dbImages.length) * 50); // 20% to 70%
+        event.sender.send('training:progress', { jobId, status: 'uploading', progress: pct, message: `Uploading dataset ${i + 1}/${dbImages.length}...` });
+      }
+
+      // Start the training task by pushing the configuration YAML
+      event.sender.send('training:progress', { jobId, status: 'uploading', progress: 75, message: 'Pushing training configuration YAML...' });
+      const startRes = await fetch(`${endpoint}/start`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ config_yaml: template }),
+      });
+      if (!startRes.ok) throw new Error(`Failed to initialize container training: ${await startRes.text()}`);
+
       await ipcMain._invokeHandler('db:updateJob', jobId, {
         status: 'training',
         gpu_instance: String(instanceId),
         gpu_type: selectedGPU.gpu || selectedGPU.label,
       });
-      event.sender.send('training:progress', { jobId, status: 'training', progress: 5, message: `GPU provisioned: ${selectedGPU.gpu || selectedGPU.label}` });
+      event.sender.send('training:progress', { jobId, status: 'training', progress: 80, message: `Training launched on ${selectedGPU.gpu || selectedGPU.label}` });
 
-      // 5. Start monitoring loop
+      // Start monitoring loop
       startMonitor(event.sender, ipcMain, jobId, provider, gpuKey, instanceId, job.spend_limit || 5);
 
       return { success: true, instanceId };
@@ -249,12 +320,7 @@ function patchIpcMain(ipcMain) {
     throw new Error(`No handler for ${channel}`);
   };
 
-  // Attach database reference directly to ipcMain for local queries
-  const getDBRef = () => {
-    const dbPath = path.join(require('electron').app.getPath('userData'), 'loratrainer', 'loratrainer.db');
-    return new (require('better-sqlite3'))(dbPath);
-  };
-  ipcMain._db = getDBRef();
+
 }
 
 module.exports = { register, patchIpcMain };

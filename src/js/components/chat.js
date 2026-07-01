@@ -97,9 +97,11 @@ Respond with ONLY the JSON block, no markdown fences, no explanation outside JSO
         return;
       }
 
+      const model = await window.api.db.getSetting('openrouter_model') || 'google/gemini-2.0-flash-001';
       const result = await window.api.openrouter.chat(
         [{ role: 'system', content: SYSTEM_PROMPT }, ...messages],
-        apiKey
+        apiKey,
+        model
       );
 
       sendBtn.disabled = false;
