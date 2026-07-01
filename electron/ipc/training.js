@@ -15,8 +15,22 @@ function register(ipcMain, userDataPath) {
       const job = await ipcMain._invokeHandler('db:getJob', jobId);
       if (!job) throw new Error('Job not found');
 
-      const gpuKey = await ipcMain._invokeHandler('db:getSetting', 'gpu_api_key');
-      const provider = job.gpu_provider || await ipcMain._invokeHandler('db:getSetting', 'gpu_provider');
+      let provider = job.gpu_provider;
+      if (!provider) {
+        const dbProvider = await ipcMain._invokeHandler('db:getSetting', 'gpu_provider');
+        const vastaiKey = await ipcMain._invokeHandler('db:getSetting', 'vastai_api_key');
+        const runpodKey = await ipcMain._invokeHandler('db:getSetting', 'runpod_api_key');
+        if (vastaiKey && !runpodKey) {
+          provider = 'vastai';
+        } else if (runpodKey && !vastaiKey) {
+          provider = 'runpod';
+        } else {
+          provider = dbProvider || 'vastai';
+        }
+      }
+      const keySetting = provider === 'vastai' ? 'vastai_api_key' : 'runpod_api_key';
+      let gpuKey = await ipcMain._invokeHandler('db:getSetting', keySetting);
+      if (!gpuKey) gpuKey = await ipcMain._invokeHandler('db:getSetting', 'gpu_api_key');
 
       // 2. Generate training config YAML
       const config = JSON.parse(job.config || '{}');
@@ -54,6 +68,12 @@ function register(ipcMain, userDataPath) {
         JOB_ID: String(jobId),
       };
 
+      // Check cancellation before creating instance
+      let checkJob = await ipcMain._invokeHandler('db:getJob', jobId);
+      if (!checkJob || checkJob.status === 'stopped') {
+        throw new Error('Cancelled');
+      }
+
       const createParams = provider === 'vastai'
         ? { offerId: selectedGPU.id, image: dockerImage, env: envVars }
         : { gpuTypeId: selectedGPU.id, image: dockerImage, env: envVars, containerRegistryAuthId };
@@ -63,10 +83,29 @@ function register(ipcMain, userDataPath) {
 
       const instanceId = instance.id || instance.new_contract;
 
+      // Immediately register the instanceId in the database so that stop training calls can destroy it
+      await ipcMain._invokeHandler('db:updateJob', jobId, {
+        gpu_instance: String(instanceId),
+      });
+
+      // Check cancellation immediately after instance creation
+      checkJob = await ipcMain._invokeHandler('db:getJob', jobId);
+      if (!checkJob || checkJob.status === 'stopped') {
+        await ipcMain._invokeHandler('gpu:destroyInstance', provider, gpuKey, instanceId);
+        throw new Error('Cancelled');
+      }
+
       // Wait for the instance endpoint to boot up and respond
       let endpoint = null;
       let retries = 40; // 40 * 15s = 10 minutes max
       while (retries > 0 && !endpoint) {
+        // Check cancellation during provisioning
+        checkJob = await ipcMain._invokeHandler('db:getJob', jobId);
+        if (!checkJob || checkJob.status === 'stopped') {
+          await ipcMain._invokeHandler('gpu:destroyInstance', provider, gpuKey, instanceId);
+          throw new Error('Cancelled');
+        }
+
         event.sender.send('training:progress', { jobId, status: 'uploading', progress: 10, message: `Provisioning container (retry ${41 - retries}/40)...` });
         await new Promise(r => setTimeout(r, 15000));
 
@@ -82,6 +121,13 @@ function register(ipcMain, userDataPath) {
       }
 
       if (!endpoint) throw new Error('Timeout waiting for GPU container web server to start.');
+
+      // Check cancellation before connecting
+      checkJob = await ipcMain._invokeHandler('db:getJob', jobId);
+      if (!checkJob || checkJob.status === 'stopped') {
+        await ipcMain._invokeHandler('gpu:destroyInstance', provider, gpuKey, instanceId);
+        throw new Error('Cancelled');
+      }
 
       // Wait for HTTP connectivity to the upload endpoint
       event.sender.send('training:progress', { jobId, status: 'uploading', progress: 20, message: 'Connecting to container upload server...' });
@@ -102,6 +148,13 @@ function register(ipcMain, userDataPath) {
 
       // Upload each image/caption companion to container
       for (let i = 0; i < dbImages.length; i++) {
+        // Check cancellation during upload
+        checkJob = await ipcMain._invokeHandler('db:getJob', jobId);
+        if (!checkJob || checkJob.status === 'stopped') {
+          await ipcMain._invokeHandler('gpu:destroyInstance', provider, gpuKey, instanceId);
+          throw new Error('Cancelled');
+        }
+
         const img = dbImages[i];
         if (!fs.existsSync(img.file_path)) continue;
 
@@ -126,6 +179,13 @@ function register(ipcMain, userDataPath) {
         event.sender.send('training:progress', { jobId, status: 'uploading', progress: pct, message: `Uploading dataset ${i + 1}/${dbImages.length}...` });
       }
 
+      // Check cancellation before config push
+      checkJob = await ipcMain._invokeHandler('db:getJob', jobId);
+      if (!checkJob || checkJob.status === 'stopped') {
+        await ipcMain._invokeHandler('gpu:destroyInstance', provider, gpuKey, instanceId);
+        throw new Error('Cancelled');
+      }
+
       // Start the training task by pushing the configuration YAML
       event.sender.send('training:progress', { jobId, status: 'uploading', progress: 75, message: 'Pushing training configuration YAML...' });
       const startRes = await fetch(`${endpoint}/start`, {
@@ -147,6 +207,10 @@ function register(ipcMain, userDataPath) {
 
       return { success: true, instanceId };
     } catch (err) {
+      if (err.message === 'Cancelled') {
+        event.sender.send('training:progress', { jobId, status: 'stopped', progress: 0, message: 'Training stopped' });
+        return { error: 'Cancelled' };
+      }
       await ipcMain._invokeHandler('db:updateJob', jobId, { status: 'failed', error_msg: err.message });
       event.sender.send('training:error', { jobId, error: err.message });
       return { error: err.message };
@@ -156,19 +220,37 @@ function register(ipcMain, userDataPath) {
   ipcMain.handle('training:stop', async (event, jobId) => {
     try {
       const job = await ipcMain._invokeHandler('db:getJob', jobId);
-      if (!job || !job.gpu_instance) return { error: 'No active instance' };
+      if (!job) return { error: 'Job not found' };
 
-      const gpuKey = await ipcMain._invokeHandler('db:getSetting', 'gpu_api_key');
-      const provider = job.gpu_provider;
+      let provider = job.gpu_provider;
+      if (!provider) {
+        const dbProvider = await ipcMain._invokeHandler('db:getSetting', 'gpu_provider');
+        const vastaiKey = await ipcMain._invokeHandler('db:getSetting', 'vastai_api_key');
+        const runpodKey = await ipcMain._invokeHandler('db:getSetting', 'runpod_api_key');
+        if (vastaiKey && !runpodKey) {
+          provider = 'vastai';
+        } else if (runpodKey && !vastaiKey) {
+          provider = 'runpod';
+        } else {
+          provider = dbProvider || 'vastai';
+        }
+      }
+      const keySetting = provider === 'vastai' ? 'vastai_api_key' : 'runpod_api_key';
+      let gpuKey = await ipcMain._invokeHandler('db:getSetting', keySetting);
+      if (!gpuKey) gpuKey = await ipcMain._invokeHandler('db:getSetting', 'gpu_api_key');
 
       if (monitors[jobId]) { clearInterval(monitors[jobId]); delete monitors[jobId]; }
 
-      await ipcMain._invokeHandler('gpu:destroyInstance', provider, gpuKey, job.gpu_instance);
-
+      // Set DB status to stopped immediately to trigger our cancellation checkpoints
       await ipcMain._invokeHandler('db:updateJob', jobId, {
         status: 'stopped',
         finished_at: new Date().toISOString(),
       });
+
+      if (job.gpu_instance) {
+        await ipcMain._invokeHandler('gpu:destroyInstance', provider, gpuKey, job.gpu_instance);
+      }
+
       event.sender.send('training:progress', { jobId, status: 'stopped', progress: 0, message: 'Training stopped' });
       return { success: true };
     } catch (err) { return { error: err.message }; }

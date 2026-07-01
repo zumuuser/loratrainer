@@ -47,7 +47,10 @@ const ProgressTracker = (() => {
         <div class="flex gap-md justify-between mt-md">
           ${isRunning 
             ? `<button class="btn btn-danger w-full" id="job-stop-btn">✕ Stop training & release GPU</button>` 
-            : `<button class="btn btn-primary w-full" id="job-start-btn">🚀 Resume/Start Training</button>`
+            : `
+              <button class="btn btn-primary" style="flex: 2" id="job-start-btn">🚀 Resume/Start Training</button>
+              <button class="btn btn-danger" style="flex: 1" id="job-delete-btn">🗑 Delete</button>
+            `
           }
         </div>
       </div>
@@ -55,6 +58,7 @@ const ProgressTracker = (() => {
 
     const stopBtn = container.querySelector('#job-stop-btn');
     const startBtn = container.querySelector('#job-start-btn');
+    const deleteBtn = container.querySelector('#job-delete-btn');
 
     if (stopBtn) {
       stopBtn.onclick = async () => {
@@ -71,6 +75,16 @@ const ProgressTracker = (() => {
         startBtn.disabled = true;
         startBtn.innerHTML = '<div class="spinner"></div> Launching...';
         if (opts.onStart) await opts.onStart(job.id);
+      };
+    }
+
+    if (deleteBtn) {
+      deleteBtn.onclick = async () => {
+        if (confirm('Are you sure you want to delete this job run? This will delete all records of it.')) {
+          deleteBtn.disabled = true;
+          deleteBtn.innerHTML = '<div class="spinner"></div> Deleting...';
+          if (opts.onDelete) await opts.onDelete(job.id);
+        }
       };
     }
   }

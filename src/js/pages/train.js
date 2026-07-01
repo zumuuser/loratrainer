@@ -8,7 +8,19 @@ App.registerPage('train', async (container) => {
   if (!job) return App.navigate('upload');
 
   const config = JSON.parse(job.config || '{}');
-  const provider = job.gpu_provider || await window.api.db.getSetting('gpu_provider') || 'vastai';
+  let provider = job.gpu_provider;
+  if (!provider) {
+    const dbProvider = await window.api.db.getSetting('gpu_provider');
+    const vastaiKey = await window.api.db.getSetting('vastai_api_key');
+    const runpodKey = await window.api.db.getSetting('runpod_api_key');
+    if (vastaiKey && !runpodKey) {
+      provider = 'vastai';
+    } else if (runpodKey && !vastaiKey) {
+      provider = 'runpod';
+    } else {
+      provider = dbProvider || 'vastai';
+    }
+  }
 
   container.innerHTML = `
     <div class="page">
@@ -141,7 +153,10 @@ App.registerPage('train', async (container) => {
     gpuSelect.disabled = true;
 
     try {
-      const key = await window.api.db.getSetting('gpu_api_key');
+      const keySetting = currentProvider === 'vastai' ? 'vastai_api_key' : 'runpod_api_key';
+      let key = await window.api.db.getSetting(keySetting);
+      if (!key) key = await window.api.db.getSetting('gpu_api_key');
+
       if (!key) {
         gpuSelect.innerHTML = '<option value="auto">Auto (API key missing in settings)</option>';
         gpuSelect.disabled = false;

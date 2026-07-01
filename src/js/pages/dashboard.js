@@ -146,6 +146,11 @@ App.registerPage('dashboard', async (container) => {
                 App.toast('Training started!');
               }
               App.navigate('dashboard');
+            },
+            onDelete: async (id) => {
+              await window.api.db.deleteJob(id);
+              App.toast('Job deleted.');
+              App.navigate('dashboard');
             }
           }
         );

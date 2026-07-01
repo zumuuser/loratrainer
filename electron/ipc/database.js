@@ -57,6 +57,7 @@ function register(ipcMain, userDataPath) {
   });
 
   ipcMain.handle('db:deleteJob', (_, id) => {
+    db.prepare('DELETE FROM dataset_images WHERE job_id = ?').run(id);
     db.prepare('DELETE FROM jobs WHERE id = ?').run(id);
     return true;
   });
