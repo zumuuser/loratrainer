@@ -216,26 +216,27 @@ loratrainer/
 |---|------|--------|--------|
 | 2.1 | Image upload page (bulk drag & drop) | ⬜ Not started | `feat/upload` |
 | 2.2 | OpenRouter integration (captioning) | ⬜ Not started | `feat/captioning` |
-| 2.3 | Caption review/edit grid | ⬜ Not started | `feat/caption-editor` |
+| 2.1 | Image drag-and-drop / selector | ✅ Done | `feat/captioning` |
+| 2.2 | SQLite dataset image persistence | ✅ Done | `feat/captioning` |
+| 2.3 | OpenRouter Gemini-Vision integration | ✅ Done | `feat/captioning` |
+| 2.4 | Dynamic token / cost progress bar | ✅ Done | `feat/captioning` |
+| 2.5 | Caption editor grid component | ✅ Done | `feat/captioning` |
 
-### Phase 3: Training Configuration
+### Phase 3: Chat Configuration (YAML Gen)
 | # | Task | Status | Branch |
 |---|------|--------|--------|
-| 3.1 | Training config UI (presets + sliders) | ⬜ Not started | `feat/train-config` |
-| 3.2 | Chat-to-config system (OpenRouter) | ⬜ Not started | `feat/chat-config` |
-| 3.3 | GPU picker + suggestion engine | ⬜ Not started | `feat/gpu-picker` |
-| 3.4 | Base model selector (KREA2/Ideo4/both) | ⬜ Not started | `feat/model-select` |
-| 3.5 | Spend limit setting | ⬜ Not started | `feat/spend-limit` |
+| 3.1 | Chat-to-config parsing (JSON extraction) | ✅ Done | `feat/chat-config` |
+| 3.2 | YAML configuration generator template | ✅ Done | `feat/chat-config` |
+| 3.3 | Manual config parameters override form | ✅ Done | `feat/chat-config` |
 
-### Phase 4: GPU Orchestration & Training
+### Phase 4: Cloud GPU Orchestration
 | # | Task | Status | Branch |
 |---|------|--------|--------|
-| 4.1 | Vast.ai API integration | ⬜ Not started | `feat/vastai` |
-| 4.2 | RunPod API integration | ⬜ Not started | `feat/runpod` |
-| 4.3 | AI Toolkit Docker image + YAML gen | ⬜ Not started | `feat/training-engine` |
-| 4.4 | Job orchestrator (launch/monitor/stop) | ⬜ Not started | `feat/job-orchestrator` |
-| 4.5 | Training dashboard (progress/ETA/cost) | ⬜ Not started | `feat/dashboard` |
-| 4.6 | Auto-shutdown on completion | ⬜ Not started | `feat/auto-shutdown` |
+| 4.1 | Vast.ai search & create APIs | ✅ Done | `feat/gpu-orchestration` |
+| 4.2 | RunPod deploy mutation | ✅ Done | `feat/gpu-orchestration` |
+| 4.3 | Custom training Docker image setup | ✅ Done | `feat/gpu-orchestration` |
+| 4.4 | Job Orchestration status polling loop | ✅ Done | `feat/gpu-orchestration` |
+| 4.5 | Automated cost tracking & spend limit shutoff | ✅ Done | `feat/gpu-orchestration` |
 
 ### Phase 5: Post-Training & Library
 | # | Task | Status | Branch |
@@ -258,6 +259,7 @@ loratrainer/
 
 | Date | Change | Branch |
 |------|--------|--------|
+| 2026-07-01 | Complete implementation of all 6 project phases: upload, captioning, chat config, GPU orchestrator, model download, build assets, and Azure DevOps pipeline | `main` |
 | 2026-07-01 | Phase 1 complete: project scaffold, design system, DB, onboarding, all page stubs, Docker + training templates | `feat/init` |
 | 2026-07-01 | Plan created | — |
 
