@@ -129,18 +129,23 @@ App.registerPage('dashboard', async (container) => {
           job,
           {
             onStop: async (id) => {
-              await window.api.training.stop(id);
-              App.toast('Training stopped.');
+              const res = await window.api.training.stop(id);
+              if (res && res.error) {
+                App.toast('Stop error: ' + res.error, 'error');
+              } else {
+                App.toast('Training stopped.');
+              }
+              sessionStorage.removeItem('currentJobId');
               App.navigate('dashboard');
             },
             onStart: async (id) => {
-              const active = jobs.find(j => j.id !== id && ['uploading', 'training', 'generating_samples'].includes(j.status));
+              const active = (await window.api.db.getJobs()).find(j => j.id !== id && ['uploading', 'training', 'generating_samples'].includes(j.status));
               if (active) {
                 App.toast(`Active job "${active.name}" is already running!`, 'error');
                 return;
               }
               const res = await window.api.training.start(id);
-              if (res.error) {
+              if (res && res.error) {
                 App.toast(res.error, 'error');
               } else {
                 App.toast('Training started!');
@@ -149,6 +154,7 @@ App.registerPage('dashboard', async (container) => {
             },
             onDelete: async (id) => {
               await window.api.db.deleteJob(id);
+              sessionStorage.removeItem('currentJobId');
               App.toast('Job deleted.');
               App.navigate('dashboard');
             }

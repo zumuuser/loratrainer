@@ -219,32 +219,37 @@ App.registerPage('train', async (container) => {
   });
 
   // ── Launch ──
-  const jobs = await window.api.db.getJobs();
-  const activeJob = jobs.find(j => ['uploading', 'training', 'generating_samples'].includes(j.status));
   const launchBtn = document.getElementById('launch-btn');
 
-  if (activeJob) {
-    launchBtn.disabled = true;
-    launchBtn.classList.remove('btn-primary');
-    launchBtn.classList.add('btn-secondary');
-    launchBtn.style.cursor = 'not-allowed';
-    launchBtn.innerHTML = `⚠️ Active job in progress: "${activeJob.name}"`;
-  } else {
-    launchBtn.onclick = async () => {
-      await saveConfigState();
-      
+  async function refreshLaunchState() {
+    const freshJobs = await window.api.db.getJobs();
+    const activeJob = freshJobs.find(j => j.id !== jobId && ['uploading', 'training', 'generating_samples'].includes(j.status));
+    if (activeJob) {
       launchBtn.disabled = true;
-      launchBtn.innerHTML = `<span style="display: inline-block; animation: spin 1s linear infinite; margin-right: 4px;">↻</span> Launching...`;
-      
-      // Trigger training pipeline in background
-      window.api.training.start(jobId).then((result) => {
-        if (result && result.error) {
-          App.toast(`Launch failed: ${result.error}`, 'error');
-        }
-      });
-      
-      sessionStorage.removeItem('currentJobId');
-      App.navigate('dashboard');
-    };
+      launchBtn.classList.remove('btn-primary');
+      launchBtn.classList.add('btn-secondary');
+      launchBtn.style.cursor = 'not-allowed';
+      launchBtn.innerHTML = `⚠️ Active job in progress: "${activeJob.name}"`;
+    } else {
+      launchBtn.disabled = false;
+      launchBtn.classList.add('btn-primary');
+      launchBtn.classList.remove('btn-secondary');
+      launchBtn.style.cursor = '';
+      launchBtn.innerHTML = '🚀 Launch Training';
+      launchBtn.onclick = async () => {
+        await saveConfigState();
+        launchBtn.disabled = true;
+        launchBtn.innerHTML = `<span style="display: inline-block; animation: spin 1s linear infinite; margin-right: 4px;">↻</span> Launching...`;
+        window.api.training.start(jobId).then((result) => {
+          if (result && result.error && result.error !== 'Cancelled') {
+            App.toast(`Launch failed: ${result.error}`, 'error');
+          }
+        });
+        sessionStorage.removeItem('currentJobId');
+        App.navigate('dashboard');
+      };
+    }
   }
+
+  await refreshLaunchState();
 });

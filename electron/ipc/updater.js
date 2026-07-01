@@ -6,18 +6,20 @@ const AdmZip = require('adm-zip');
 
 function register(ipcMain, userDataPath, appUpdatePath) {
   
-  // Helper to fetch latest commit SHA
+  // Helper to fetch latest commit SHA (works with public repo, no token needed)
   async function getLatestCommit(token) {
     return new Promise((resolve, reject) => {
+      const headers = {
+        'Accept': 'application/vnd.github.v3+json',
+        'User-Agent': 'loratrainer-updater'
+      };
+      if (token) headers['Authorization'] = `token ${token}`;
+
       const options = {
         hostname: 'api.github.com',
         path: '/repos/zumuuser/loratrainer/commits/main',
         method: 'GET',
-        headers: {
-          'Authorization': `token ${token}`,
-          'Accept': 'application/vnd.github.v3+json',
-          'User-Agent': 'loratrainer-updater'
-        }
+        headers
       };
 
       const req = https.request(options, (res) => {
@@ -72,8 +74,8 @@ function register(ipcMain, userDataPath, appUpdatePath) {
 
   ipcMain.handle('updater:check', async () => {
     try {
-      // Fetch token from db settings or use default
-      let token = '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';
+      // Fetch token from DB settings (optional — repo is public)
+      let token = null;
       const db = ipcMain._db;
       if (db) {
         const row = db.prepare('SELECT value FROM settings WHERE key = ?').get('github_token');
@@ -95,7 +97,7 @@ function register(ipcMain, userDataPath, appUpdatePath) {
 
   ipcMain.handle('updater:perform', async (_, latestSha) => {
     try {
-      let token = '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';
+      let token = null;
       const db = ipcMain._db;
       if (db) {
         const row = db.prepare('SELECT value FROM settings WHERE key = ?').get('github_token');
@@ -105,17 +107,16 @@ function register(ipcMain, userDataPath, appUpdatePath) {
       const zipPath = path.join(userDataPath, 'update.zip');
       console.log('Downloading repository zipball...');
       
-      // Download zip ball
+      // Download zip ball (public repo, token optional)
       await new Promise((resolve, reject) => {
         const file = fs.createWriteStream(zipPath);
+        const dlHeaders = { 'User-Agent': 'loratrainer-updater' };
+        if (token) dlHeaders['Authorization'] = `token ${token}`;
         const options = {
           hostname: 'api.github.com',
           path: '/repos/zumuuser/loratrainer/zipball/main',
           method: 'GET',
-          headers: {
-            'Authorization': `token ${token}`,
-            'User-Agent': 'loratrainer-updater'
-          }
+          headers: dlHeaders
         };
 
         function get(urlOptions) {

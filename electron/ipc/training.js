@@ -207,7 +207,8 @@ function register(ipcMain, userDataPath) {
 
       return { success: true, instanceId };
     } catch (err) {
-      if (err.message === 'Cancelled') {
+      const checkJob = await ipcMain._invokeHandler('db:getJob', jobId);
+      if ((checkJob && checkJob.status === 'stopped') || err.message === 'Cancelled') {
         event.sender.send('training:progress', { jobId, status: 'stopped', progress: 0, message: 'Training stopped' });
         return { error: 'Cancelled' };
       }
@@ -219,26 +220,6 @@ function register(ipcMain, userDataPath) {
 
   ipcMain.handle('training:stop', async (event, jobId) => {
     try {
-      const job = await ipcMain._invokeHandler('db:getJob', jobId);
-      if (!job) return { error: 'Job not found' };
-
-      let provider = job.gpu_provider;
-      if (!provider) {
-        const dbProvider = await ipcMain._invokeHandler('db:getSetting', 'gpu_provider');
-        const vastaiKey = await ipcMain._invokeHandler('db:getSetting', 'vastai_api_key');
-        const runpodKey = await ipcMain._invokeHandler('db:getSetting', 'runpod_api_key');
-        if (vastaiKey && !runpodKey) {
-          provider = 'vastai';
-        } else if (runpodKey && !vastaiKey) {
-          provider = 'runpod';
-        } else {
-          provider = dbProvider || 'vastai';
-        }
-      }
-      const keySetting = provider === 'vastai' ? 'vastai_api_key' : 'runpod_api_key';
-      let gpuKey = await ipcMain._invokeHandler('db:getSetting', keySetting);
-      if (!gpuKey) gpuKey = await ipcMain._invokeHandler('db:getSetting', 'gpu_api_key');
-
       if (monitors[jobId]) { clearInterval(monitors[jobId]); delete monitors[jobId]; }
 
       // Set DB status to stopped immediately to trigger our cancellation checkpoints
@@ -247,13 +228,39 @@ function register(ipcMain, userDataPath) {
         finished_at: new Date().toISOString(),
       });
 
-      if (job.gpu_instance) {
-        await ipcMain._invokeHandler('gpu:destroyInstance', provider, gpuKey, job.gpu_instance);
+      const job = await ipcMain._invokeHandler('db:getJob', jobId);
+      if (job && job.gpu_instance) {
+        let provider = job.gpu_provider;
+        if (!provider) {
+          const dbProvider = await ipcMain._invokeHandler('db:getSetting', 'gpu_provider');
+          const vastaiKey = await ipcMain._invokeHandler('db:getSetting', 'vastai_api_key');
+          const runpodKey = await ipcMain._invokeHandler('db:getSetting', 'runpod_api_key');
+          if (vastaiKey && !runpodKey) {
+            provider = 'vastai';
+          } else if (runpodKey && !vastaiKey) {
+            provider = 'runpod';
+          } else {
+            provider = dbProvider || 'vastai';
+          }
+        }
+        const keySetting = provider === 'vastai' ? 'vastai_api_key' : 'runpod_api_key';
+        let gpuKey = await ipcMain._invokeHandler('db:getSetting', keySetting);
+        if (!gpuKey) gpuKey = await ipcMain._invokeHandler('db:getSetting', 'gpu_api_key');
+
+        if (gpuKey) {
+          try {
+            await ipcMain._invokeHandler('gpu:destroyInstance', provider, gpuKey, job.gpu_instance);
+          } catch (destroyErr) {
+            console.error('Error destroying instance during stop:', destroyErr);
+          }
+        }
       }
 
       event.sender.send('training:progress', { jobId, status: 'stopped', progress: 0, message: 'Training stopped' });
       return { success: true };
-    } catch (err) { return { error: err.message }; }
+    } catch (err) { 
+      return { error: err.message }; 
+    }
   });
 
   ipcMain.handle('training:status', async (_, jobId) => {
