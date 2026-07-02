@@ -19,6 +19,7 @@ config:
         optimizer: "adamw8bit"
         lr_scheduler: "cosine"
         max_denoising_steps: 50
+        noise_scheduler: "flowmatch"
       network:
         type: "lora"
         linear: ${RANK}

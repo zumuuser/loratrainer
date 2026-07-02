@@ -19,6 +19,7 @@ config:
         lr_scheduler: "cosine"
         max_denoising_steps: 50
         gradient_checkpointing: true
+        noise_scheduler: "flowmatch"
       network:
         type: "lora"
         linear: ${RANK}
