@@ -21,6 +21,31 @@ if os.path.exists(path):
     open(path, 'w').write(content)
 " || echo "Patch not applied or not needed"
 
+# 2b. Apply scaled_dot_product_attention enable_gqa compatibility patch to Krea-2 mmdit
+echo "=== Patching Krea-2 mmdit ==="
+python3 -c "
+path = '/app/ai-toolkit/extensions_built_in/diffusion_models/krea2/src/mmdit.py'
+import os
+if os.path.exists(path):
+    content = open(path).read()
+    old_block = '''    with sdpa_kernel(SDPBackend.CUDNN_ATTENTION):
+        x = F.scaled_dot_product_attention(
+            q, k, v, attn_mask=mask, scale=scale, enable_gqa=gqa
+        )'''
+    new_block = '''    with sdpa_kernel(SDPBackend.CUDNN_ATTENTION):
+        try:
+            x = F.scaled_dot_product_attention(
+                q, k, v, attn_mask=mask, scale=scale, enable_gqa=gqa
+            )
+        except TypeError:
+            x = F.scaled_dot_product_attention(
+                q, k, v, attn_mask=mask, scale=scale
+            )'''
+    if old_block in content:
+        content = content.replace(old_block, new_block)
+        open(path, 'w').write(content)
+" || echo "Krea-2 mmdit patch not applied or not needed"
+
 # 3. Run training via AI Toolkit
 echo "=== Beginning Training ==="
 python3 /app/ai-toolkit/run.py /workspace/config/train.yaml
