@@ -2,6 +2,8 @@
 # Entrypoint for cloud GPU training container
 set -e
 
+export HF_HOME=/workspace/.cache/huggingface
+
 echo "=== LoRA Trainer Cloud Worker ==="
 
 # 1. Start worker server to accept dataset uploads and the config yaml

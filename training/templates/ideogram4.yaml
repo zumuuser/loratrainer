@@ -10,6 +10,7 @@ config:
       model:
         name_or_path: "ideogram-ai/ideogram-v4-dit"
         is_flux: false
+        arch: "ideogram4"
       train:
         batch_size: 1
         steps: ${STEPS}
