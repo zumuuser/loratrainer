@@ -5,7 +5,7 @@ set -e
 echo "=== LoRA Trainer Cloud Worker ==="
 
 # 1. Start worker server to accept dataset uploads and the config yaml
-python3 /workspace/worker.py
+python3 /app/worker.py
 
 # 2. Run training via AI Toolkit
 echo "=== Beginning Training ==="
