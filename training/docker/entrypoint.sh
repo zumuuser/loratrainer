@@ -32,7 +32,12 @@ if os.path.exists(path):
         x = F.scaled_dot_product_attention(
             q, k, v, attn_mask=mask, scale=scale, enable_gqa=gqa
         )'''
-    new_block = '''    try:
+    new_block = '''    if q.shape[1] != k.shape[1]:
+        num_groups = q.shape[1] // k.shape[1]
+        k = k.repeat_interleave(num_groups, dim=1)
+        v = v.repeat_interleave(num_groups, dim=1)
+        gqa = False
+    try:
         x = F.scaled_dot_product_attention(
             q, k, v, attn_mask=mask, scale=scale, enable_gqa=gqa
         )
