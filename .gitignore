@@ -4,3 +4,5 @@ dist/
 .env
 user_data/
 build_artifacts/
+monitor_training.py
+monitor.log

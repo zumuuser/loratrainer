@@ -11,6 +11,7 @@ config:
         name_or_path: "krea/Krea-2-Raw"
         is_flux: false
         arch: "krea2"
+        low_vram: true
       train:
         batch_size: 1
         steps: ${STEPS}
