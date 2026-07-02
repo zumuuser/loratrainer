@@ -32,15 +32,14 @@ if os.path.exists(path):
         x = F.scaled_dot_product_attention(
             q, k, v, attn_mask=mask, scale=scale, enable_gqa=gqa
         )'''
-    new_block = '''    with sdpa_kernel(SDPBackend.CUDNN_ATTENTION):
-        try:
-            x = F.scaled_dot_product_attention(
-                q, k, v, attn_mask=mask, scale=scale, enable_gqa=gqa
-            )
-        except TypeError:
-            x = F.scaled_dot_product_attention(
-                q, k, v, attn_mask=mask, scale=scale
-            )'''
+    new_block = '''    try:
+        x = F.scaled_dot_product_attention(
+            q, k, v, attn_mask=mask, scale=scale, enable_gqa=gqa
+        )
+    except TypeError:
+        x = F.scaled_dot_product_attention(
+            q, k, v, attn_mask=mask, scale=scale
+        )'''
     if old_block in content:
         content = content.replace(old_block, new_block)
         open(path, 'w').write(content)
