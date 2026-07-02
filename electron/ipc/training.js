@@ -115,7 +115,7 @@ function register(ipcMain, userDataPath) {
           if (portObj) endpoint = `http://${inst.public_ipaddr}:${portObj.HostPort}`;
         } else if (provider === 'runpod' && inst && inst.runtime) {
           // Check if port 8000 proxy is active
-          endpoint = `http://${instanceId}-8000.proxy.runpod.net`;
+          endpoint = `https://${instanceId}-8000.proxy.runpod.net`;
         }
         retries--;
       }
